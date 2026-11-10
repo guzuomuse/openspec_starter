@@ -41,6 +41,18 @@ pwsh ./_starter/install.ps1 -Target C:\proj\some-existing-project
 参数：`-Target`（必填）、`-Agents`（默认 `opencode,codebuddy`）、`-DryRun`、`-Force`。
 备份写到 `%TEMP%\openspec-starter-backup\<时间戳>\`，不往项目里塞 `.bak`。
 
+## `scripts/check-review.mjs` 的约定
+
+它把 review 结论变成退出码，**只读结构、不读叙述**：
+
+- `## Verdict` 里 `high N / medium N` 的 N 是**仍未处理**的条数，必须为 0；
+  括号里写"均已 fixed"不构成豁免（v1 就是信这句话被绕过的）。
+- 每个 finding 写成 `### F<n> [high|medium|low]` + 一行 `- 状态：<...>`；
+  状态以 `fixed` / `rejected` / `closed` 开头才算关闭，**缺 `- 状态：` 一律算 open**。
+- Verdict 与 Findings 反推结果不一致 → 阻塞（不可信）。
+
+改这套判据时，必须同步改 SKILL 第 5、6 节——两边描述的得是同一套格式。
+
 ## 维护纪律
 
 1. **改 `openspec/schemas/tdd-flow/` 里任何内容，必须把 `schema.yaml` 的 `version` 加 1。**

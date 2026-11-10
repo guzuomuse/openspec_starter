@@ -1,5 +1,5 @@
 name: tdd-flow
-version: 3
+version: 4
 description: TDD workflow - proposal → specs → design → seams → tasks, 红绿成对切片
 artifacts:
   - id: proposal
@@ -251,6 +251,8 @@ artifacts:
         expected value, and that the seam's command must fail.
       - GREEN states: the minimal implementation that makes that one test pass,
         and that the seam's command must re-run green.
+      - GREEN 的最小实现是**当前规格下的最小正确实现**，不是"先写个明知错的、留给
+        下一对切片打红"的版本。故意埋雷只在教学演示里可接受，且必须在任务里写明。
       - Slice count follows behavior complexity, not behavior count: a typical
         change needs 1-3 pairs, not one pair per requirement. Open a new pair
         only for a new seam, a new branch family, or a state machine. A guard
@@ -294,10 +296,15 @@ apply:
        环境或路径错误都不算红，必须先修测试本身再谈实现。
        被测符号还不存在时，可以先建一个返回 undefined 的空壳让测试跑起来——空壳属于
        RED（它不实现任何行为），不需要单独的复选框；符号已经存在就不要建。
-    2. 红灯异常：整条测试**一开始就全绿**才算异常，立刻停止并报告——要么功能已经存在，
-       要么断言什么也没有验证。同一条测试里其它断言在旧实现下本来就是绿的属正常
-       （一个切片钉一条规则，不要求每条断言都红），不要因此停下，也不要把它们拆成
-       互相独立的测试去凑"全红"。
+    2. 红灯异常：整条测试**一开始就全绿**时才需要处置，分两种：
+       - **功能或契约本来就已经存在**（不打算再改）→ 停止并报告，不要勾框。
+       - **红来不了，但断言依然有效**（例如错误来自 `Array.from(null)` 这类间接行为，
+         而不是你打算写的那条校验）→ 允许继续，但必须付两个代价：
+         (a) 在该任务旁标注 `[RED→绿: <原因>]`，写清为什么它一开始就绿；
+         (b) review 阶段这条断言必须过一次**红证**（删掉被钉的实现，断言必须变红）。
+         红证做不到 = 断言没有区分力，按"断言无效"处理，别当它是保护。
+       同一条测试里其它断言在旧实现下本来就是绿的属正常（一个切片钉一条规则，不要求每条断言都红），
+       不要因此停下，也不要把它们拆成互相独立的测试去凑"全红"。
     3. GREEN：只写让这一条测试通过的最小实现，不预写后续切片的逻辑。
     4. 勾选：RED 与 GREEN 两个复选框都勾上，这个切片才算完成。
     5. 一次一个切片：本切片 GREEN 之前，绝不写下一个切片的测试。

@@ -313,6 +313,23 @@ lesson3 的实测暴露了一类问题：**规则写在 prompt 里，机制不�
 另外两处小修：子代理无命令执行能力时允许"取证降级：静态推演"，但红证由主代理补跑、`review.md` 必须写明
 （skill 第 1 节）；✅/⚠️ 判据不再重叠——区别是"有没有 open 的 low"，并正面规定何时可以 archive（第 5 节）。
 
+### 8.7 v4 修正：把判据从"叙述"挪到"结构"
+
+lesson3 第二轮（`add-text-truncate`）证明 v3 的修法本身又落回了散文——门禁信了括号里的一句话。
+
+| # | 缺口 | 修法 |
+|---|---|---|
+| 1 | `check-review.mjs` v1 在 Verdict 括号里找"已 fixed"豁免，`medium 2（已降级为 low，留待后续）` 一句就放行 | v2 改成**读结构**：Verdict 的 high/medium 必须为 0（括号不参与豁免）＋ 从每个 `### F<n> [severity]` 的 `- 状态：` 反推 open（缺 `- 状态：` 算 open）＋ 两边不一致直接阻塞 |
+| 2 | "整条测试一开始全绿 → 立刻停止"没给"红来不了但断言有效"留落点，执行者只能违规继续、勾一个未达成判据的框 | apply 第 2 条分两支：契约已存在 → 停；红来不了但断言有效 → 允许继续，代价是标 `[RED→绿: <原因>]`，且 review 必须过一次红证（删实现 → 断言必须红），红不了就算断言无区分力 |
+| 3 | 子代理没有 shell 时，"三透镜并行"退化成三个静态读同一批文件 | skill 第 1 节加能力探测：跑不了 `git rev-parse HEAD` → 主代理串行跑三遍、diff 由主代理喂入、`review.md` 记"串行降级" |
+| 4 | 演示型任务"允许用 `slice` 走码元（下一对让它红）"＝要求写明知错的实现 | tasks instruction 明确 GREEN 是"当前规格下的最小**正确**实现"；教学演示必须在任务里标注 |
+
+顺带确认两条摩擦的处置：`openspec validate --strict` 假绿已在 v3 修掉；
+"每勾一框重跑 apply instructions" 来自 `openspec init` 的受管 skill 文本，改了会被 `update` 重写，不动它。
+
+门禁脚本 v2 的七组用例：真实 review ×2 → 通过；`medium 2（已降级为 low…）` → 阻塞（与 Findings 对不上）；
+open 的 medium → 阻塞；缺 `- 状态：` 的 high → 阻塞；⛔ → 阻塞；文件不存在 → exit 2。
+
 ---
 
 ## 9. 踩坑记录
@@ -328,6 +345,7 @@ lesson3 的实测暴露了一类问题：**规则写在 prompt 里，机制不�
 | 中立目录 `.agents/skills/` | 实测 opencode 与 codebuddy 都不加载（探针 skill 没进可用列表） | 放弃中立，改方案 A：各工具目录各一份，命名 `openspec-custom-<功能>` |
 | 中文 Why / Purpose 太短 | `Why section must be at least 50 characters`、`carried Purpose is under 50 characters` | 都按字符计数、中文约需 50 字；已同时写进 proposal 与 specs 的 instruction |
 | `openspec validate --strict` 不带 `--all` | 打印 `Nothing to validate`、exit 0，等于永远绿 | AGENTS.md 改用 `--all --strict`；§8.6 #1 |
+| 门禁能被措辞绕过 | 脚本在括号里找"已 fixed"做豁免，写一句"已降级为 low，留待后续"就放行 | 判据改读 Findings 结构 + Verdict 一致性校验（v4，§8.7） |
 | review verdict 不进状态机 | 先勾收口框再写"⛔ 阻塞"，CLI 照样 `all_done` 并允许 archive | 收口前跑 `scripts/check-review.mjs`，非 0 不放行；§8.6 #2 |
 | 增量改动的"红灯意外通过" | 加天单位时，1.2 的通用正则顺手让 1.3 的 `1d2h` 直接绿 | 断言保留（非空转），该对切片标 `[RED→绿]` 并记录原因；这是切片粒度问题，不是测试问题 |
 

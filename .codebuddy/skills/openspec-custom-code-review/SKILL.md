@@ -43,12 +43,25 @@ description: Review a finished OpenSpec change along three independent lenses (s
    不要留到子代理里才发现。
 4. 记下 diff 命令和提交列表，后面每个透镜都要用。
 
-## 1. 三透镜并行
+## 1. 三透镜：先探能力，再决定并行还是串行
+
+**先探一次能力**：起一个子代理，让它跑 `git rev-parse HEAD` 并把输出贴回来。
+
+- **能跑命令** → 走下面的并行流程。
+- **不能跑**（无 tty / 沙箱 / 只读代理）→ **不要假装并行**，改由主代理**串行跑三遍**：
+  每遍只带一个透镜的判据（A 一遍、B 一遍、C 一遍），中间不交叉；
+  diff 由主代理先取好、直接贴进输入（对方跑不了 git，这步不能省）；
+  三份结论分开记，`review.md` 的「验证记录」写明 `串行降级（子代理无命令执行能力）`。
+  为什么必须串行：三个静态推演的子代理看到的是同一批文件、同一套上下文，并行只剩形式；
+  串行至少保证每个轴只用自己的判据，不被别的轴污染。
+
+并行时的规则：
 
 三个子代理**同时**发起、前台等待。每个透镜只看自己的轴，
 不要替别的透镜下判断，也不要给跨轴的优先级。
 
 透镜 prompt 里只给路径和命令，不要把 diff 正文塞进去——让子代理自己读。
+（串行降级时相反：diff 由主代理喂进去。）
 
 ### 透镜 A：spec（实现是否符合契约）
 
@@ -192,7 +205,16 @@ mock 调用次数、端到端透传但没检查改动结果。
 node scripts/check-review.mjs openspec/changes/<change>/review.md
 ```
 
-退出码 0 才允许勾 review 收口框、才允许 archive；非 0 就按它打印的原因回去修。
+它**不读叙述，只读结构**：
+
+- Verdict 行的 `high N` / `medium N` 必须是 **0**；括号里写"均已 fixed"**不构成豁免**
+  （v1 就是因为信这句话，被 `medium 2（已降级为 low，留待后续）` 一句话放行）；
+- 它再从每个 `### F<n> [severity]` 块的 `- 状态：` 反推还有哪些 open（状态以
+  `fixed` / `rejected` / `closed` 开头才算关闭；**缺 `- 状态：` 一律算 open**）；
+- 两边对不上就阻塞。想蒙过去得同时改两处结构化字段，而不是换一种说法。
+
+退出码：`0` 可收口；`1` 阻塞（⛔ / 有 open 的 high/medium / Verdict 与 Findings 不一致）；
+`2` 结构或文件问题（同样不放行：缺 Verdict、缺 `high N` 计数、文件读不到）。
 脚本不在仓库里时先补 `scripts/check-review.mjs`（模板里有这份）。
 
 ## 6. 写 `review.md`
@@ -219,6 +241,7 @@ node scripts/check-review.mjs openspec/changes/<change>/review.md
 
 ### F2 [medium] <标题>
 - 路由：decision_needed
+- 状态：open
 - 选项：A ...（推荐）／B ...
 
 ## Auto-decided
