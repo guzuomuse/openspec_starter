@@ -49,6 +49,10 @@ description: Review a finished OpenSpec change along three independent lenses (s
    门禁脚本会数：**任务行（复选框行）上**的 `[RED→绿]` 条数 **大于** 验证记录里的红证行数时直接阻塞，
    并把被判为欠条的行原样列出来。散文里提到这套机制（例如解释"本切片是真红，红灯异常处理不适用"）
    不算欠条——那条规矩存在的目的是让人去做红证，不是让人闭嘴。
+
+    **抽验自证。** 自 v6 起 apply 阶段应当已对每对切片做过"删掉刚写的实现 → 该测试必须变红"的自证。
+    review 至少抽验 1 对（挑最难的那对：新分支、新错误路径），删了不红就是这条断言没有区分力，
+    记一条 `medium` / `verification`；`tasks.md` 里完全找不到自证痕迹的，也同样记一条。
 4. 确认固定点能解析（`git rev-parse <point>`）、diff 非空。ref 错要在这里就失败，
    不要留到子代理里才发现。
 5. 记下 diff 命令和提交列表，后面每个透镜都要用。
@@ -227,7 +231,7 @@ node scripts/check-review.mjs openspec/changes/<change>/review.md
 `[RED→绿]` 欠条没还）；`2` 结构或文件问题（缺 Verdict、缺 `high N` 计数、`## 验证记录` 写了不止一节、文件读不到）。
 脚本不在仓库里时先补 `scripts/check-review.mjs`（模板里有这份）。
 
-**跑对副本、跑对目录。**（当前判据版本 `gate v5.1`） 每个仓库自带一份 `scripts/check-review.mjs`，副本会落后于模板；
+**跑对副本、跑对目录。**（当前判据版本 `gate v6`） 每个仓库自带一份 `scripts/check-review.mjs`，副本会落后于模板；
 在别的目录下执行会拿到那份旧脚本，它的 `0` 是**旧判据的 0**。所以：在**被审查仓库的根目录**跑它自己的副本，
 并看成功行末尾的判据版本（`✓ review 可收口（gate v5）`）——版本比仓库 schema 落后，就先把脚本同步过来再判。
 

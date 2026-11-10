@@ -1,5 +1,5 @@
 name: tdd-flow
-version: 5
+version: 6
 description: TDD workflow - proposal → specs → design → seams → tasks, 红绿成对切片
 artifacts:
   - id: proposal
@@ -249,6 +249,10 @@ artifacts:
         it tests imagined behavior.
       - RED states: the seam id from seams.md, the test name, the input, the
         expected value, and that the seam's command must fail.
+      - RED 任务里要**列全这个切片覆盖的 spec 场景**（一个切片可以覆盖多个场景，逐个点名），
+        每个场景给出输入与期望值。漏掉的场景要么并进这个切片，要么在 tasks 里写明不测的理由——
+        review 会拿这份清单核对 spec 中有没有被悄悄跳过的场景。别把"再补几条断言"留给 apply 临场决定：
+        那一刻钉住了什么就没有账可查了，只剩一个勾。
       - GREEN states: the minimal implementation that makes that one test pass,
         and that the seam's command must re-run green.
       - GREEN 的最小实现是**当前规格下的最小正确实现**，不是"先写个明知错的、留给
@@ -306,6 +310,13 @@ apply:
        同一条测试里其它断言在旧实现下本来就是绿的属正常（一个切片钉一条规则，不要求每条断言都红），
        不要因此停下，也不要把它们拆成互相独立的测试去凑"全红"。
     3. GREEN：只写让这一条测试通过的最小实现，不预写后续切片的逻辑。
+       **绿了当场自证**（本切片、删一次、跑一次，别攒到 review）：把这一对切片刚写的那段实现
+       删掉（或改成抛错/返回空），重跑 S1 的命令，必须看到**本条测试变红**，然后恢复并复跑全绿。
+       - 变红 = 这段代码是载荷，RED→GREEN 成立，可以勾框。
+       - 仍然是绿 = 让它变绿的是别处（多半是更早的切片顺手覆盖了），你刚写的这段没被任何断言钉住。
+         这时不要勾框：补一条只有这段实现能过的断言再走，或记一条 medium 的 verification 问题。
+         红灯只证明"断言当时有区分力"，不证明"变绿的是你刚写的那段"——这一步就是补上这个缺口。
+       - 一段实现服务多对切片时，只对**最后引进它的那一对**自证；更早的切片不重复删。
     4. 勾选：RED 与 GREEN 两个复选框都勾上，这个切片才算完成。
     5. 一次一个切片：本切片 GREEN 之前，绝不写下一个切片的测试。
     6. 测试只写在 seams.md 里确认过的接缝上。发现需要新接缝，先停下问用户，
