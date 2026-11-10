@@ -230,18 +230,23 @@ Triage 到 Route 的关键分界：`patch`（无歧义）／`decision_needed`（
 | `.opencode/skills/openspec-*/` + `.opencode/commands/opsx-*.md` | openspec init | 受管，`update` 重写 |
 | `.codebuddy/skills/openspec-*/` + `.codebuddy/commands/opsx/*.md` | openspec init | 受管，`update` 重写 |
 | `AGENTS.md` | ours | 项目约定（提交、测试、工作流） |
+| `_starter/install.ps1` | ours | 只给**已有项目**升级用；新项目靠克隆，不需要它 |
+| `docs/openspec-cheatsheet.md` | ours | 本文（唯一维护地） |
 
 ### 8.2 复现（新项目）
 
-```bash
-# 一次性：把 starter 克隆到项目外面，不要放进每个项目
-git clone https://github.com/guzuomuse/openspec_starter C:\my_projects\openspec-starter
+**仓库根就是模板，克隆即用**（2026-11-11 起；此前是 `payload/` + 安装脚本的布局）：
 
-# 每个新项目
-openspec init --tools opencode,codebuddy
-pwsh C:\my_projects\openspec-starter\install.ps1 -Target . -DryRun   # 先看计划
-pwsh C:\my_projects\openspec-starter\install.ps1 -Target .
+```bash
+git clone https://github.com/guzuomuse/openspec_starter 新目录
+cd 新目录
+git remote remove origin        # 或用 GitHub "Use this template"，新仓库不带历史
 ```
+
+老项目（已有 `openspec/`）用 `_starter/install.ps1` 补装/升级，见 `_starter/README.md`。
+
+为什么不再"每次跑一次安装脚本"：装脚本的三条判据（version / config 有无自定义 / 内容哈希）本来是给
+**升级**用的——把一处改动分发到 N 个项目；新项目开局靠克隆就能完成，多一次脚本执行只是摩擦。
 
 没有 starter 时的手工复现是 5 步：`schema fork` → 覆盖 `schema.yaml` → 覆盖 `tasks` 模板并新增
 `seams` 模板 → 新增 `tdd-guide.md` → 覆写 `config.yaml` 并分发 skill。
@@ -268,7 +273,10 @@ pwsh C:\my_projects\openspec-starter\install.ps1 -Target .
 |---|---|---|
 | schema 目录 | `schema.yaml` 的 `version` | 目标 < 源 → 备份后覆盖；相同 → 跳过（**用户改动因此被保护**） |
 | `config.yaml` | 有无 `context:` / `rules:` / `operations:` | 无（init 默认）→ 整份写入；有 → **只改 `schema:` 一行** |
-| skill 目录 | 逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖 |
+| 自有 skill 目录（`openspec-custom-*`） | 逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖 |
+
+受管文件（`openspec-*` skill、`commands/opsx*`）**不在分发范围**：它们绑定 CLI 版本，只能靠
+`openspec init` / `openspec update` 生成。安装脚本碰它们，等于用一个项目的 CLI 版本去覆盖另一个。
 
 **关键认识**：`config.yaml` 里真正必须落到目标项目的只有 `schema:` 一行，其余（context / rules /
 operations）是用户资产。把"整文件覆盖"降级成"改一行"，"这文件归谁"的问题就消失了——

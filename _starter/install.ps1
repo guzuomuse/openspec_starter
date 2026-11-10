@@ -1,25 +1,29 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  把 OpenSpec Starter 的扩展装进一个已初始化的 OpenSpec 项目。
+  把本仓库（openspec-starter 模板）的 OpenSpec 扩展装进一个已存在的项目。
 
 .DESCRIPTION
-  四件事：校验目标 → 装 schema → 处理 config 的 schema 行 → 分发 skill → 自检。
-  不执行 openspec init（那一步需要你自己选工具）。
+  本仓库根目录就是模板：新项目直接 git clone 或 GitHub "Use this template" 即可开箱使用。
+  这个脚本是给**已经存在**的项目（已有 openspec/，比如老项目升级）补装/升级用的。
+
+  复制源是仓库根，`_starter/`、`docs/`、`README.md`、`AGENTS.md`、`.git` 都不参与复制。
 
   更新策略（不判断"文件归谁"，只看能不能安全决定）：
     - schema 目录：读 schema.yaml 的 version 比对，同版本静默跳过
     - config.yaml：只在没有自定义 context/rules 时整份写入；否则只改 schema: 这一行
-    - skill 目录：内容一致则跳过，否则备份后覆盖
+    - 自有 skill（`openspec-custom-*`）：内容一致则跳过，否则备份后覆盖。
+      受管的 `openspec-*` skill 与 `commands/opsx*` 属于 CLI，不在这里分发——
+      它们由 `openspec init` / `openspec update` 负责。
 
 .EXAMPLE
-  pwsh ./install.ps1 -Target C:\proj\my-new-project
+  pwsh ./_starter/install.ps1 -Target C:\proj\my-existing-project
 
 .EXAMPLE
-  pwsh ./install.ps1 -Target . -DryRun
+  pwsh ./_starter/install.ps1 -Target . -DryRun
 
 .EXAMPLE
-  pwsh ./install.ps1 -Target . -Agents opencode -Force
+  pwsh ./_starter/install.ps1 -Target . -Agents codebuddy -Force
 #>
 [CmdletBinding()]
 param(
@@ -35,8 +39,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = $PSScriptRoot
-$payload = Join-Path $root "payload"
+# 仓库根 = 模板内容（本脚本在 _starter/ 下）
+$root = Split-Path $PSScriptRoot -Parent
 $schemaName = "tdd-flow"
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backupRoot = Join-Path ([System.IO.Path]::GetTempPath()) "openspec-starter-backup\$stamp"
@@ -94,8 +98,8 @@ function Test-DirSame([string]$left, [string]$right) {
 }
 
 # ---- 0. 前置检查 ------------------------------------------------------------
-if (-not (Test-Path $payload)) {
-    throw "payload/ 不存在，脚本必须和 payload/ 放在同一个仓库里。"
+if (-not (Test-Path (Join-Path $root "openspec/schemas/$schemaName/schema.yaml"))) {
+    throw "在 $root 找不到 openspec/schemas/$schemaName/schema.yaml，脚本必须放在仓库的 _starter/ 下。"
 }
 if (-not (Test-Path $Target)) {
     throw "目标目录不存在: $Target"
@@ -103,7 +107,10 @@ if (-not (Test-Path $Target)) {
 $Target = (Resolve-Path $Target).Path
 
 if (-not (Test-Path (Join-Path $Target "openspec"))) {
-    throw "目标里没有 openspec/ 目录。请先在该项目里运行 openspec init，再执行本脚本。"
+    throw @"
+目标里没有 openspec/ 目录。这个脚本只服务已有项目。
+新项目请直接用模板：git clone <模板地址> <新目录>，不需要跑安装脚本。
+"@
 }
 
 if ($DryRun) {
@@ -113,9 +120,9 @@ if ($DryRun) {
 # ---- 1. schema --------------------------------------------------------------
 Write-Step "schema: $schemaName"
 
-$payloadSchemaDir = Join-Path $payload "openspec/schemas/$schemaName"
+$srcSchemaDir = Join-Path $root "openspec/schemas/$schemaName"
 $targetSchemaDir = Join-Path $Target "openspec/schemas/$schemaName"
-$payloadVersion = Get-SchemaVersion (Join-Path $payloadSchemaDir "schema.yaml")
+$payloadVersion = Get-SchemaVersion (Join-Path $srcSchemaDir "schema.yaml")
 $targetVersion = Get-SchemaVersion (Join-Path $targetSchemaDir "schema.yaml")
 
 $installSchema = $false
@@ -143,13 +150,13 @@ if ($installSchema -and -not $DryRun) {
     Backup-Item $targetSchemaDir "schemas/$schemaName"
     if (Test-Path $targetSchemaDir) { Remove-Item -Recurse -Force $targetSchemaDir }
     New-Item -ItemType Directory -Force -Path (Split-Path $targetSchemaDir) | Out-Null
-    Copy-Item -Recurse $payloadSchemaDir $targetSchemaDir
+    Copy-Item -Recurse $srcSchemaDir $targetSchemaDir
 }
 
 # ---- 2. config.yaml ---------------------------------------------------------
 Write-Step "config: openspec/config.yaml"
 
-$cfgSrc = Join-Path $payload "openspec/config.yaml"
+$cfgSrc = Join-Path $root "openspec/config.yaml"
 $cfgDst = Join-Path $Target "openspec/config.yaml"
 
 if (-not (Test-Path $cfgDst)) {
@@ -201,15 +208,20 @@ else {
     }
 }
 
-# ---- 3. skills --------------------------------------------------------------
-Write-Step "skills"
+# ---- 3. 自有 skill（openspec-custom-*） -------------------------------------
+Write-Step "skills: openspec-custom-*"
 
 foreach ($agent in $Agents) {
-    $agentSkills = Join-Path $Target ".$agent/skills"
+    $srcSkills = Join-Path $root ".$agent/skills"
+    if (-not (Test-Path $srcSkills)) {
+        Write-Warn "仓库里没有 .$agent/skills，跳过该工具目录。"
+        continue
+    }
+    $dstSkills = Join-Path $Target ".$agent/skills"
 
-    Get-ChildItem (Join-Path $payload "skills") -Directory | ForEach-Object {
+    Get-ChildItem $srcSkills -Directory | Where-Object { $_.Name -like "openspec-custom-*" } | ForEach-Object {
         $name = $_.Name
-        $dst = Join-Path $agentSkills $name
+        $dst = Join-Path $dstSkills $name
 
         if ((Test-DirSame $dst $_.FullName) -and -not $Force) {
             Write-Info "skip" ".$agent/skills/$name" "内容一致"
@@ -218,7 +230,7 @@ foreach ($agent in $Agents) {
             $verb = if (Test-Path $dst) { "update" } else { "add" }
             Write-Info $verb ".$agent/skills/$name"
             if (-not $DryRun) {
-                New-Item -ItemType Directory -Force -Path $agentSkills | Out-Null
+                New-Item -ItemType Directory -Force -Path $dstSkills | Out-Null
                 Backup-Item $dst "$agent/$name"
                 if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
                 Copy-Item -Recurse $_.FullName $dst
@@ -226,6 +238,8 @@ foreach ($agent in $Agents) {
         }
     }
 }
+
+Write-Warn "受管文件（openspec-* skill、commands/opsx*）不在此分发。CLI 升级后请在目标项目跑 openspec update。"
 
 # ---- 4. 自检 ----------------------------------------------------------------
 if ($DryRun) {

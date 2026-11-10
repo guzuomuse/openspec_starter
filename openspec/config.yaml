@@ -3,7 +3,7 @@ schema: tdd-flow
 context: |
   所有产物用简体中文撰写。
   本项目遵循 TDD：任何实现任务开始前，必须先有对应的失败测试。
-  测试用 Node 内置 runner 跑：`node --test`。
+  测试命令写在 seams.md 的每一行里；测试怎么跑还没定，就先定下来再写 tasks。
 
 rules:
   seams:
