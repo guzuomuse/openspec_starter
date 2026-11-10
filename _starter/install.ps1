@@ -57,10 +57,13 @@ function Write-Warn($text) { Write-Host "!!  $text" -ForegroundColor Yellow }
 function Backup-Item([string]$path, [string]$relName) {
     if (-not (Test-Path $path)) { return }
     if ($DryRun) { return }
-    if (-not (Test-Path $backupRoot)) {
-        New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
-    }
     $dest = Join-Path $backupRoot $relName
+    # 建的是 $dest 的父目录，不是 $backupRoot 本身：备份根在第一次调用时就已存在，
+    # 只判根目录会让 `scripts/check-review.mjs` 这种带子目录的目标直接 Copy-Item 失败。
+    $destParent = Split-Path $dest -Parent
+    if (-not (Test-Path $destParent)) {
+        New-Item -ItemType Directory -Force -Path $destParent | Out-Null
+    }
     Copy-Item -Recurse $path $dest -Force
     Write-Host "        backup -> $dest" -ForegroundColor DarkGray
 }
