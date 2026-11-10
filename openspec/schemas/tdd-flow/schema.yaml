@@ -1,5 +1,5 @@
 name: tdd-flow
-version: 2
+version: 3
 description: TDD workflow - proposal → specs → design → seams → tasks, 红绿成对切片
 artifacts:
   - id: proposal
@@ -292,8 +292,12 @@ apply:
     1. RED：只写测试，不改实现。运行任务里写明的命令，必须看到这条测试失败。
        红可以来自"断言不成立"或"被测符号还不存在"；语法错误、测试自己写错、
        环境或路径错误都不算红，必须先修测试本身再谈实现。
-    2. 红灯异常：若测试直接通过，立刻停止并报告——要么功能已经存在，要么断言
-       什么也没有验证。不要为了让流程继续而删掉或弱化断言。
+       被测符号还不存在时，可以先建一个返回 undefined 的空壳让测试跑起来——空壳属于
+       RED（它不实现任何行为），不需要单独的复选框；符号已经存在就不要建。
+    2. 红灯异常：整条测试**一开始就全绿**才算异常，立刻停止并报告——要么功能已经存在，
+       要么断言什么也没有验证。同一条测试里其它断言在旧实现下本来就是绿的属正常
+       （一个切片钉一条规则，不要求每条断言都红），不要因此停下，也不要把它们拆成
+       互相独立的测试去凑"全红"。
     3. GREEN：只写让这一条测试通过的最小实现，不预写后续切片的逻辑。
     4. 勾选：RED 与 GREEN 两个复选框都勾上，这个切片才算完成。
     5. 一次一个切片：本切片 GREEN 之前，绝不写下一个切片的测试。
@@ -305,5 +309,10 @@ apply:
     9. 收口：所有切片勾完后（切片 = RED/GREEN 对，**不含** tasks 末尾的 review 收口任务；
        那条在 review 完成、结论写进 review.md 之后才勾），必须跑
        openspec-custom-code-review skill，把结论写进
-       openspec/changes/<change>/review.md。仍有 open 的 high/medium 时，
-       这个 change 不算实现完成，不要 archive。
+       openspec/changes/<change>/review.md。勾那条框之前，先跑
+       `node scripts/check-review.mjs openspec/changes/<change>/review.md`，退出码必须为 0
+       ——CLI 只数复选框、不读 verdict，这个脚本是把结论变成可执行判据的唯一环节
+       （脚本不在的仓库，就先补 scripts/check-review.mjs）。
+       仍有 open 的 high/medium 时，这个 change 不算实现完成，不要 archive。
+    10. 逐切片提交会留下"当时还不符 spec"的中间态提交，这是 TDD 的正常产物：
+       不要 checkout 中间版本当可用版本，也不要为了历史好看去改已完成切片。

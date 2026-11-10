@@ -12,6 +12,7 @@
   更新策略（不判断"文件归谁"，只看能不能安全决定）：
     - schema 目录：读 schema.yaml 的 version 比对，同版本静默跳过
     - config.yaml：只在没有自定义 context/rules 时整份写入；否则只改 schema: 这一行
+    - scripts/：逐文件哈希比对，一致跳过（review 门禁脚本走这条）
     - 自有 skill（`openspec-custom-*`）：内容一致则跳过，否则备份后覆盖。
       受管的 `openspec-*` skill 与 `commands/opsx*` 属于 CLI，不在这里分发——
       它们由 `openspec init` / `openspec update` 负责。
@@ -208,7 +209,33 @@ else {
     }
 }
 
-# ---- 3. 自有 skill（openspec-custom-*） -------------------------------------
+# ---- 3. scripts（ours） -----------------------------------------------------
+Write-Step "scripts"
+
+$srcScripts = Join-Path $root "scripts"
+if (Test-Path $srcScripts) {
+    $dstScripts = Join-Path $Target "scripts"
+    Get-ChildItem $srcScripts -File | ForEach-Object {
+        $dst = Join-Path $dstScripts $_.Name
+        if ((Test-Path $dst) -and ((Get-ContentHash $dst) -eq (Get-ContentHash $_.FullName)) -and -not $Force) {
+            Write-Info "skip" "scripts/$($_.Name)" "内容一致"
+        }
+        else {
+            $verb = if (Test-Path $dst) { "update" } else { "add" }
+            Write-Info $verb "scripts/$($_.Name)"
+            if (-not $DryRun) {
+                New-Item -ItemType Directory -Force -Path $dstScripts | Out-Null
+                Backup-Item $dst "scripts/$($_.Name)"
+                Copy-Item $_.FullName $dst -Force
+            }
+        }
+    }
+}
+else {
+    Write-Warn "仓库里没有 scripts/，跳过。"
+}
+
+# ---- 4. 自有 skill（openspec-custom-*） -------------------------------------
 Write-Step "skills: openspec-custom-*"
 
 foreach ($agent in $Agents) {
@@ -241,7 +268,7 @@ foreach ($agent in $Agents) {
 
 Write-Warn "受管文件（openspec-* skill、commands/opsx*）不在此分发。CLI 升级后请在目标项目跑 openspec update。"
 
-# ---- 4. 自检 ----------------------------------------------------------------
+# ---- 5. 自检 ----------------------------------------------------------------
 if ($DryRun) {
     Write-Host ""
     Write-Host "DRY RUN 结束，未写入任何文件。" -ForegroundColor Magenta

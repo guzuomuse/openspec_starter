@@ -295,6 +295,23 @@ operations）是用户资产。把"整文件覆盖"降级成"改一行"，"这�
 | `add-duration-seconds` | 用户自跑，MODIFIED 增量 | 合并干净，5 个场景 |
 | `add-duration-days` | 全链路 + 三透镜 review + 红证 | 9 测试；4 条 finding（2 medium 已钉、1 low 已修、1 low 转决策） |
 | `add-duration-weeks` | **opencode 独立跑通** | 12 测试；medium 1 + low 1 + rejected 1；F2 追到上一轮 F4 同根因 |
+| `add-human-size`（lesson3，模板克隆） | 从模板新建项目 → propose → apply → review 全链路 | 11/11；medium 2 + low 2 + rejected 1；暴露下面 6 处机制缺口 |
+
+### 8.6 v3 修正：把"看起来绿"改成"真的查"
+
+lesson3 的实测暴露了一类问题：**规则写在 prompt 里，机制不强制**。逐条修法：
+
+| # | 缺口 | 修法 |
+|---|---|---|
+| 1 | `openspec validate --strict` 不带 `--all` 时打印 `Nothing to validate` 并返回 0 —— 假绿 | `AGENTS.md` 改成 `--all --strict`，并写明裸形式是空门禁 |
+| 2 | CLI 的 `all_done` 只数复选框，不读 `review.md` 的 verdict；先勾框再写"⛔ 阻塞"照样能 archive | 新增 `scripts/check-review.mjs`：解析 Verdict 行，非 0 退出即不许收口；写进 apply 第 9 条、skill 第 5 节、AGENTS.md |
+| 3 | review 固定点默认 `HEAD`（审工作区），与"每次修改立即 commit"冲突，实现跑完时工作区必然干净 | 固定点自动分级：工作区非空 → 审工作区；干净 → 取 change 目录首次提交为基线 `git diff $BASE`；再空 → 首提交；仍空才报无改动 |
+| 4 | RED 阶段的"空壳"在任务清单里没有位置，照 instruction 字面属违规 | apply 第 1 条明确：空壳属于 RED，不需要单独复选框，符号已存在时不要建 |
+| 5 | "测试直接通过就停止"隐含"每条断言都该红"，与"一条 test 钉一条规则"冲突 | apply 第 2 条改成：整条 test 一开始全绿才是异常；同一条里的其它断言是绿的属正常 |
+| 6 | 三透镜在契约空白区互斥（spec 说删、verification 说补） | `verification-lens.md` 第 4 步前置一问"spec 承诺过吗"；未承诺记 `contract-gap` → `decision_needed`，不折中成 low |
+
+另外两处小修：子代理无命令执行能力时允许"取证降级：静态推演"，但红证由主代理补跑、`review.md` 必须写明
+（skill 第 1 节）；✅/⚠️ 判据不再重叠——区别是"有没有 open 的 low"，并正面规定何时可以 archive（第 5 节）。
 
 ---
 
@@ -310,6 +327,8 @@ operations）是用户资产。把"整文件覆盖"降级成"改一行"，"这�
 | `update` 改全局配置 | 每次 `--dry-run` 都列 `~/.../openspec/config.json` | 正常，与本项目无关 |
 | 中立目录 `.agents/skills/` | 实测 opencode 与 codebuddy 都不加载（探针 skill 没进可用列表） | 放弃中立，改方案 A：各工具目录各一份，命名 `openspec-custom-<功能>` |
 | 中文 Why / Purpose 太短 | `Why section must be at least 50 characters`、`carried Purpose is under 50 characters` | 都按字符计数、中文约需 50 字；已同时写进 proposal 与 specs 的 instruction |
+| `openspec validate --strict` 不带 `--all` | 打印 `Nothing to validate`、exit 0，等于永远绿 | AGENTS.md 改用 `--all --strict`；§8.6 #1 |
+| review verdict 不进状态机 | 先勾收口框再写"⛔ 阻塞"，CLI 照样 `all_done` 并允许 archive | 收口前跑 `scripts/check-review.mjs`，非 0 不放行；§8.6 #2 |
 | 增量改动的"红灯意外通过" | 加天单位时，1.2 的通用正则顺手让 1.3 的 `1d2h` 直接绿 | 断言保留（非空转），该对切片标 `[RED→绿]` 并记录原因；这是切片粒度问题，不是测试问题 |
 
 ---
@@ -326,6 +345,7 @@ openspec status --change <name>         # artifact 完成度 + blocked 原因
 openspec instructions <id> --change <n> # 取某个 artifact 的 prompt
 openspec instructions apply --change <n># 取 apply 的 prompt（含进度与 guidance）
 openspec validate <name> --strict       # 严格校验 change
+openspec validate --all --strict        # 校验所有 change 与 spec（裸 --strict 是空门禁）
 openspec validate <spec> --type spec --strict
 openspec validate --archived            # 校验已归档的 change
 openspec archive <name> -y              # 合并 delta + 搬到 archive/

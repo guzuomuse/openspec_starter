@@ -60,6 +60,7 @@ openspec new change <change-name>          # 新建一个 change
 | `openspec/schemas/tdd-flow/` | ours（fork 自 spec-driven） | 能，但改完要升 `version` |
 | `.codebuddy/skills/openspec-custom-code-review/`<br>`.opencode/skills/openspec-custom-code-review/` | ours（两份副本，必须同步） | 能 |
 | `.codebuddy/skills/openspec-*/`、`.codebuddy/commands/opsx/`<br>`.opencode/skills/openspec-*/`、`.opencode/commands/opsx-*.md` | `openspec init` 生成 | **别手改**，`openspec update` 会重写 |
+| `scripts/check-review.mjs` | ours | 能（改判据前先看 `_starter/README.md`） |
 | `AGENTS.md` | ours | 能 |
 
 `openspec-custom-` 前缀就是"这不是官方受管文件"的标记。

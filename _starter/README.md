@@ -35,6 +35,7 @@ pwsh ./_starter/install.ps1 -Target C:\proj\some-existing-project
 | `openspec/schemas/tdd-flow/` | 读 `schema.yaml` 的 `version` | 目标版本 < 源版本 → 备份后覆盖；相同 → 跳过 |
 | `openspec/config.yaml` | 有无 `context:` / `rules:` / `operations:` | 无 → 整份写入；有 → **只改 `schema:` 这一行** |
 | `.opencode/skills/openspec-custom-*`、`.codebuddy/skills/openspec-custom-*` | 目录内容逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖 |
+| `scripts/` | 逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖（`check-review.mjs` 走这条） |
 | `.codebuddy/skills/openspec-*/`、`.opencode/skills/openspec-*/`、`commands/opsx*` | — | **不分发**（CLI 受管，靠 `openspec update`） |
 
 参数：`-Target`（必填）、`-Agents`（默认 `opencode,codebuddy`）、`-DryRun`、`-Force`。

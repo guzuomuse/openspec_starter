@@ -19,7 +19,7 @@ description: Review a finished OpenSpec change along three independent lenses (s
 | 参数 | 默认 |
 |---|---|
 | change 名 | 从对话或 `openspec list` 推断，唯一时直接用 |
-| 固定点 | 默认 `HEAD`，即审工作区未提交改动；给了 commit/branch 就审 `git diff <point>...HEAD` |
+| 固定点 | 自动挑（见第 0 节）；用户给了 commit/branch 就审 `git diff <point>...HEAD` |
 
 ## 0. 先定范围，再开工
 
@@ -28,10 +28,20 @@ description: Review a finished OpenSpec change along three independent lenses (s
    review 收口任务（模板里的 `## Review 收口` 组，通常是最后一个复选框）由本次 review
    结束时才勾，它**不在**入口条件里——否则"全勾才 review"和"review 完才勾"就成死循环了。
    实现任务没勾完就不要 review，先回去 apply。
-2. 确认固定点能解析（`git rev-parse <point>`），且 diff 非空
-   （`git diff <point> --stat` 或 `git status --porcelain`）。
-   **ref 错或 diff 为空在这里就失败**，不要留到子代理里才发现。
-3. 记下 diff 命令和提交列表，后面每个透镜都要用。
+2. 定固定点。**不要用"工作区为空就失败"当判据**——仓库约定是每次修改立即 commit，实现跑完时
+   工作区通常就是干净的，那样等于把正常情况判成失败。按顺序试：
+   1. `git status --porcelain` 非空 → 固定点 = 工作区，看 `git diff` 加上未跟踪文件；
+   2. 工作区干净 → 以**规划提交**为基线，审它之后的所有实现提交：
+      `BASE=$(git log --reverse --format=%H -- "openspec/changes/<name>" | head -1)`，
+      然后 `git diff $BASE`（这条覆盖逐切片提交的实现，不受"已 commit"影响）；
+   3. 上面拿到空 diff（规划与实现在同一个提交里）→ 退到
+      `git diff $(git rev-list --max-parents=0 HEAD)`；
+   4. 四种都空，才报"没有可审的改动"并停。
+   用户给了 commit/branch 时优先用他给的。**把最终采用的固定点写进 `review.md` 的「验证记录」**，
+   复跑时沿用同一个，别每轮漂。
+3. 确认固定点能解析（`git rev-parse <point>`）、diff 非空。ref 错要在这里就失败，
+   不要留到子代理里才发现。
+4. 记下 diff 命令和提交列表，后面每个透镜都要用。
 
 ## 1. 三透镜并行
 
@@ -67,10 +77,19 @@ mock 调用次数、端到端透传但没检查改动结果。
 规则：**仓库文档化的标准永远优先**；baseline 里的 smell 一律是判断而非硬违规；
 工具已经强制的（lint、格式、类型）跳过。
 
-### 失败处理
+### 失败处理与取证降级
 
 任一透镜失败、超时或返回空：记下它的名字，用剩下的继续，
 **最后必须报告"本次 review 不完整"**，不能说成干净通过。
+
+子代理可能根本没有命令执行能力（无 tty、沙箱、只读代理）。它必须如实回报
+"无法执行 `git diff` / 测试命令"，此时按取证降级处理：
+
+- 静态推演可以继续（读 `.git/logs/HEAD`、读文件、读测试），但结论只能算"待验证"；
+- **红证 / 变异验证 / 跑测试由主代理补跑**，子代理不得声称"已验证"；
+- `review.md` 的「验证记录」必须写明 `取证降级：静态推演`，并列出主代理补跑了哪几条；
+- 有 high/medium 结论缺实测支撑、主代理也补不了 → 降级成 `decision_needed`，
+  不要以"静态看应该没问题"结案。
 
 ## 2. Triage
 
@@ -90,6 +109,10 @@ mock 调用次数、端到端透传但没检查改动结果。
 4. **去重**：按**根因**分组，不按文件位置。同位置可能是两个不同的 bug。
    每组取最高的 verdict，记住成员的 `R` 编号和来源。
 5. **拒绝**：`false` 一律拒；`low` 且修复成本大于收益的拒。
+6. **跨透镜冲突，以 spec 为准**：spec 轴说"删掉未承诺行为的断言"，verification 轴说
+   "这里没有钉子"，是同一处代码在契约空白区给出的相反处方。裁决规则：
+   **回归 = 承诺过的行为被破坏**，没承诺过的行为不算 gap。把它记成 `contract-gap`，
+   路由 `decision_needed`（"要钉住它得先写 requirement"），**不要折中成一条 low 了事**。
 
 ## 3. Route
 
@@ -155,13 +178,22 @@ mock 调用次数、端到端透传但没检查改动结果。
 
 结束后：
 
-| 状态 | 条件 |
-|---|---|
-| ✅ 通过 | 没有 open 的 high/medium |
-| ⚠️ 有条件通过 | 只剩 `defer` 和已拒绝项 |
-| ⛔ 阻塞 | 还有 open 的 high/medium，或任一透镜失败 |
+| 状态 | 条件 | 能 archive 吗 |
+|---|---|---|
+| ✅ 通过 | open 的 high/medium/low 全为 0，无失败透镜 | 能 |
+| ⚠️ 有条件通过 | open 的 high 0 / medium 0，只剩 low open、`defer`、已拒绝项 | 能 |
+| ⛔ 阻塞 | 还有 open 的 high/medium，或任一透镜失败/未完成 | **不能** |
 
-阻塞时不要自行 archive。
+两条判据不再重叠：区别就是"有没有 open 的 low"，前者零 open，后者允许 low 留着。
+
+**收口前必须跑门禁脚本**（CLI 只数复选框、不读 verdict，这一步是唯一能把它变成可执行判据的环节）：
+
+```bash
+node scripts/check-review.mjs openspec/changes/<change>/review.md
+```
+
+退出码 0 才允许勾 review 收口框、才允许 archive；非 0 就按它打印的原因回去修。
+脚本不在仓库里时先补 `scripts/check-review.mjs`（模板里有这份）。
 
 ## 6. 写 `review.md`
 
@@ -171,6 +203,10 @@ mock 调用次数、端到端透传但没检查改动结果。
 ## Verdict
 <通过 / 有条件通过 / 阻塞> — high N / medium N / low N / auto-decided N / rejected N
 透镜：spec ok / verification ok / standards 失败（原因）
+
+<!-- N = 仍未处理的条数；已修复的写进括号，例如 medium 2（均已 fixed）。
+     scripts/check-review.mjs 按这个约定解析：破折号前是状态词，分号前是计数。 -->
+
 
 ## Findings
 
@@ -190,6 +226,12 @@ mock 调用次数、端到端透传但没检查改动结果。
 
 ## 已拒绝
 - R3 [false] <标题> — 推翻依据：<...>
+
+## 验证记录
+
+- 固定点：`<BASE 或 分支>`，`git diff <BASE>` 覆盖 N 个提交（为什么选它：工作区干净 → 取规划提交）
+- 测试：`<seams.md 里的命令>` → x pass / y fail
+- 取证：三透镜均可执行命令 / `取证降级：静态推演`（主代理补跑了：…）
 ```
 
 ## 什么不算缺陷
