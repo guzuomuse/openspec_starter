@@ -235,13 +235,15 @@ Triage 到 Route 的关键分界：`patch`（无歧义）／`decision_needed`（
 
 ### 8.2 复现（新项目）
 
-**仓库根就是模板，克隆即用**（2026-11-11 起；此前是 `payload/` + 安装脚本的布局）：
+**仓库根就是模板，从模板建仓库即用**（2026-11-11 起；此前是 `payload/` + 安装脚本的布局）：
 
 ```bash
-git clone https://github.com/guzuomuse/openspec_starter 新目录
-cd 新目录
-git remote remove origin        # 或用 GitHub "Use this template"，新仓库不带历史
+gh repo create 新项目 --template guzuomuse/openspec_starter --private --clone
 ```
+
+**为什么不是 `git clone`**：裸克隆会把 `origin` 指向模板仓库，且带着模板的历史，第一次 `git push`
+就污染模板。用 template（CLI 或网页 Use this template）生成的新仓库只有一次初始提交、origin 指向自己，
+坑从根上消失。只要本地目录时用 `git clone --depth 1 … && rm -rf .git && git init -b main`。
 
 老项目（已有 `openspec/`）用 `_starter/install.ps1` 补装/升级，见 `_starter/README.md`。
 

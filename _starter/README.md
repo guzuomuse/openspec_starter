@@ -7,6 +7,19 @@
 
 一份内容，两种用法。根目录没有第二份副本，所以不存在"改了根目录忘了改 payload"。
 
+## 为什么新项目走"从模板建仓库"，而不是裸 `git clone`
+
+`git clone <模板> <新目录>` 会留下 `origin` 指向模板仓库，且带着模板的提交历史。第一次 `git push`
+就污染模板——这不是靠"记得跑 `git remote remove origin`"能解决的，是把坑交给了记性。
+
+所以：
+- **要远端**：`gh repo create <name> --template guzuomuse/openspec_starter --clone`
+  （或 GitHub 的 Use this template）→ 新仓库一次初始提交、origin 指向自己。
+- **只要本地**：`git clone --depth 1 … && rm -rf .git && git init -b main`。
+
+模板仓库的 `is_template` 标记就是这个方案的前提，别关掉它。
+（`gh repo edit guzuomuse/openspec_starter --template` 可重新打开。）
+
 ## install.ps1 干什么
 
 ```bash

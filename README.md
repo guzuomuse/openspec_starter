@@ -5,13 +5,25 @@
 
 ## 用它开一个新项目
 
+**推荐：从模板建仓库。** `origin` 从一开始就指向你自己的仓库，不存在推错地方的可能：
+
 ```bash
-git clone https://github.com/guzuomuse/openspec_starter 新目录
-cd 新目录
-git remote remove origin        # 用 GitHub "Use this template" 则不需要这一步
+gh repo create my-new-project --template guzuomuse/openspec_starter --private --clone
+cd my-new-project
 ```
 
-或在 GitHub 仓库页点 **Use this template → Create a new repository**（新仓库不带本模板的提交历史，更干净）。
+不想用命令行，就在 GitHub 仓库页点 **Use this template → Create a new repository**。
+两种方式生成的新仓库都**不带本模板的提交历史**（一次初始提交）。
+
+**只要本地目录、不建远端**（纯试验、不打算 push）：
+
+```bash
+git clone --depth 1 https://github.com/guzuomuse/openspec_starter 新目录
+cd 新目录 && rm -rf .git && git init -b main
+```
+
+> ⚠️ 别在裸 `git clone` 出来的目录里直接 `git push`：那时 `origin` 还指着模板仓库，
+> 你的提交会被推到模板上。上面两种方式已经把这个问题从根上去掉了，这条只是解释为什么不再推荐裸克隆。
 
 克隆下来就已经是这样一个项目：
 
