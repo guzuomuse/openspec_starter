@@ -1,0 +1,298 @@
+name: tdd-flow
+version: 1
+description: TDD workflow - proposal → specs → design → seams → tasks, 红绿成对切片
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Initial proposal document outlining the change
+    template: proposal.md
+    instruction: |
+      Create the proposal document that establishes WHY this change is needed.
+
+      Sections:
+      - **Why**: 1-2 sentences on the problem or opportunity. What problem does this solve? Why now?
+        **At least 50 characters** - `openspec archive` warns below that, and
+        `openspec validate --strict` fails. The count is characters: a Chinese
+        Why needs roughly 50 汉字 to pass.
+      - **What Changes**: Bullet list of changes. Be specific about new capabilities, modifications, or removals. Mark breaking changes with **BREAKING**.
+      - **Capabilities**: Identify which specs will be created or modified:
+        - **New Capabilities**: List capabilities being introduced. Each becomes a new `specs/<capability-path>/spec.md`. Name each capability for a durable system behavior (for example, `user-auth`), not the work in this change (for example, `add-login-endpoint`). Choose a cohesive boundary that can own related requirements as the system evolves; avoid broad catch-all capabilities. Use kebab-case for path segments you introduce (e.g., `user-auth` or `identity/user-auth`) and follow the project's existing spec organization.
+        - **Modified Capabilities**: List existing capabilities whose REQUIREMENTS are changing. Only include if spec-level behavior changes (not just implementation details). Each needs a delta spec file. Use the exact existing path under `openspec/specs/`. Leave empty if no requirement changes.
+      - **Impact**: Affected code, APIs, dependencies, or systems.
+
+      IMPORTANT: The Capabilities section is critical. It creates the contract between
+      proposal and specs phases. Research existing specs before filling this in:
+      run `openspec list --specs` for the project's capability inventory, then
+      `openspec show "<spec-id>" --type spec --json --no-scenarios` for any that
+      look related - that returns a capability's purpose and requirement texts
+      without pulling whole spec files into context. Append `--store "<id>"` to
+      both commands only for a registered standalone store, and keep `--type
+      spec`: a change and a spec sharing a name is otherwise an ambiguous-item
+      error. `openspec list` without `--specs` lists in-flight changes, not
+      specs - it never shows what the project already covers. Reuse an existing
+      capability's exact path instead of introducing a near-duplicate name.
+      The filtered read is only an overview. Before deciding what is already
+      covered or what should change, read each relevant spec in full, including
+      scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).
+      Each capability listed here will need a corresponding spec file.
+
+      Every change must either declare at least one capability (new or
+      modified) or explicitly opt out of specs: `openspec validate` rejects a
+      change with zero deltas unless the change's `.openspec.yaml` sets
+      `skip_specs: true`. Use `skip_specs: true` only when no spec-level
+      behavior changes (pure refactor, tooling, docs) - specs describe
+      behavior, so if behavior does not change, no spec should change either.
+      Do not invent a requirement just to satisfy validation.
+
+      Keep it concise (1-2 pages). Focus on the "why" not the "how" -
+      implementation details belong in design.md.
+
+      This is the foundation - specs, design, and tasks all build on this.
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Detailed specifications for the change
+    template: spec.md
+    instruction: |
+      Create specification files that define WHAT the system should do.
+
+      A spec is a behavior contract, not an implementation plan.
+
+      Good spec content:
+      - Observable behavior users or downstream systems rely on
+      - Inputs, outputs, and error conditions
+      - External constraints (security, privacy, reliability, compatibility)
+      - Scenarios that can be tested or explicitly validated
+
+      Avoid in specs:
+      - Internal class/function names
+      - Library or framework choices
+      - Step-by-step implementation details
+      - Detailed execution plans (those belong in design.md or tasks.md)
+
+      Quick test: if the implementation can change without changing externally
+      visible behavior, it likely does not belong in the spec.
+
+      Create one spec file per capability listed in the proposal's Capabilities section.
+      `<capability-path>` is the spec directory relative to `specs/` (for example,
+      `user-auth` or `identity/user-auth`). Preserve the full path:
+      - New capabilities: use the exact path from the proposal at `specs/<capability-path>/spec.md`. Any path segment newly introduced in the proposal must be kebab-case. Follow the project's existing organization; do not add a new domain level when the project uses a flat layout.
+      - Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.
+
+      Write the spec files one at a time, so the user sees progress and an
+      interrupted run keeps the files it already wrote:
+      - Before writing anything, compare the capabilities the proposal lists
+        with the `specs/<capability-path>/spec.md` files that already exist,
+        and start with the first capability that has no file. Do not rewrite
+        an existing file unless the user asks you to.
+      - Before each file, say in one line which capability you are writing.
+      - Write each file as soon as you have drafted it. Do not plan every file
+        before writing the first.
+      - Stop when every capability the proposal lists has its file.
+
+      There must be at least one spec file unless the change's `.openspec.yaml`
+      sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`
+      rejects a zero-delta change without that marker. If the proposal lists no
+      capabilities and `skip_specs` is not set, revisit the proposal first.
+
+      Delta operations (use ## headers):
+      - **ADDED Requirements**: New capabilities
+      - **MODIFIED Requirements**: Changed behavior - MUST include full updated content
+      - **REMOVED Requirements**: Deprecated features - MUST include **Reason** and **Migration**
+      - **RENAMED Requirements**: Name changes only - use FROM:/TO: format
+
+      Format requirements:
+      - Each requirement: `### Requirement: <name>` followed by description
+      - Use SHALL/MUST for normative requirements (avoid should/may)
+      - Each scenario: `#### Scenario: <name>` with WHEN/THEN format
+      - **CRITICAL**: Scenarios MUST use exactly 4 hashtags (`####`). Using 3 hashtags or bullets will fail silently.
+      - Every requirement MUST have at least one scenario.
+      - Every scenario MUST have a WHEN/GIVEN step (its trigger) and a THEN step (its outcome). A scenario with only AND lines or plain prose still counts as a scenario, but `openspec validate` flags it as a warning: normal validation still passes, but `openspec validate --strict` fails on it.
+      - Keep each requirement's description (the text between `### Requirement:` and its first scenario) to 500 characters or fewer. `openspec validate` flags longer descriptions in ADDED requirements and in the main spec. This is a warning: normal validation still passes, but `openspec validate --strict` fails on it. When writing a new requirement, state one behavior per requirement: move examples and edge cases into scenarios, and split a requirement that covers several behaviors into separate `### Requirement:` blocks, each with its own scenarios. Under MODIFIED, keep the existing requirement block whole; never split, trim or rewrite existing text just to meet the length. Split an existing long requirement only when the user asks for it, in a change made for that purpose: under MODIFIED, keep its header and every scenario and cut its description down to one behavior without changing its meaning, then add each behavior you removed as its own ADDED requirement with its own scenarios.
+
+      New capabilities only: the delta spec's first section is `## Purpose` -
+      one or two sentences (50+ characters, or `openspec validate --strict`
+      reports it as too brief) describing what the capability is for.
+      The count is characters, and a CJK character counts as one: a Chinese
+      Purpose needs roughly 50 汉字 to pass --strict. Archive
+      copies it into the main spec it creates; without it the new main spec is
+      left with a `TBD ... Update Purpose after archive` placeholder to fill in
+      by hand. Do NOT add `## Purpose` to a delta for an existing capability -
+      that spec already has one and the delta's is ignored. To change an
+      existing capability's Purpose - including a leftover `TBD` placeholder -
+      edit `<planningHome.root>/openspec/specs/<capability-path>/spec.md`
+      directly. `planningHome.root` comes from the `openspec instructions ...
+      --json` response. Always use it rather than a repo-relative path: it
+      resolves to the store whenever the change lives in one - whether that
+      came from `--store`, a project `store:` pointer, or a global default
+      store - and to the current repository otherwise. Do not try to work out
+      which case applies; the field already has.
+
+      MODIFIED requirements workflow:
+      1. Locate the existing requirement in `<planningHome.root>/openspec/specs/<capability-path>/spec.md` (the same store-aware root as above)
+      2. Copy the ENTIRE requirement block (from `### Requirement:` through all scenarios)
+      3. Paste under `## MODIFIED Requirements` and edit to reflect new behavior
+      4. Ensure header text matches exactly (whitespace-insensitive)
+
+      Common pitfall: Using MODIFIED with partial content loses detail at archive time.
+      If adding new concerns without changing existing behavior, use ADDED instead.
+
+      Example (a new capability, so its first section is `## Purpose`):
+      ```
+      # Spec Delta
+
+      ## Purpose
+
+      Lets users take their data out of the product in a portable format.
+
+      ## ADDED Requirements
+
+      ### Requirement: User can export data
+      The system SHALL allow users to export their data in CSV format.
+
+      #### Scenario: Successful export
+      - **WHEN** user clicks "Export" button
+      - **THEN** system downloads a CSV file with all user data
+
+      ## REMOVED Requirements
+
+      ### Requirement: Legacy export
+      **Reason**: Replaced by new export system
+      **Migration**: Use new export endpoint at /api/v2/export
+      ```
+
+      Specs should be testable - each scenario is a potential test case.
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: Technical design document with implementation details
+    template: design.md
+    instruction: |
+      Create the design document that explains HOW to implement the change.
+
+      When to include design.md (create only if any apply):
+      - Cross-cutting change (multiple services/modules) or new architectural pattern
+      - New external dependency or significant data model changes
+      - Security, performance, or migration complexity
+      - Ambiguity that benefits from technical decisions before coding
+
+      Sections:
+      - **Context**: Only the current state and constraints needed to explain the approach. Reference the proposal for motivation instead of restating it (e.g., "See proposal.md - Why").
+      - **Goals / Non-Goals**: What this design achieves and explicitly excludes. Don't restate the proposal's scope - add only design-level boundaries.
+      - **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.
+      - **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] → Mitigation
+      - **Migration Plan**: Steps to deploy, rollback strategy (if applicable)
+      - **Open Questions**: Unknowns that can safely be answered later without
+        changing the specs, the approach, or the task breakdown. Omit if none.
+
+      Open questions are for genuinely deferrable unknowns, not decisions you
+      skipped. If a question would change the specs, the chosen approach, or
+      the task breakdown, resolve it now - ask the user instead of guessing.
+
+      Focus on architecture and approach, not line-by-line implementation.
+      The proposal covers why and what; design covers how. Reference the
+      proposal for motivation and, once written, the specs for requirements -
+      if a section would only restate them, point to them instead.
+
+      Good design docs explain the "why" behind technical decisions.
+    requires:
+      - proposal
+
+  - id: seams
+    generates: seams.md
+    description: Confirmed test seams, one per observable boundary
+    template: seams.md
+    instruction: |
+      Write the seams this change will be tested at, BEFORE any test exists.
+
+      A seam is the public boundary a test calls. Tests live at seams only,
+      never against internal structure.
+
+      Rules:
+      - One row per seam: the public interface, the behavior it covers, the
+        command that runs the tests, and what it cannot catch (its blind spot).
+      - Few and deliberate. Cover critical paths and complex logic, not every
+        edge case.
+      - Every seam must trace back to at least one scenario in specs/.
+      - If the interface shape is still open, list it under Open questions and
+        stop to ask the user before writing tests.
+      - Do not list individual test cases here. Cutting the seams into
+        RED/GREEN slices is tasks.md's job.
+    requires:
+      - specs
+
+  - id: tasks
+    generates: tasks.md
+    description: Implementation checklist with trackable tasks
+    template: tasks.md
+    instruction: |
+      Cut the work into ordered RED/GREEN slices.
+
+      **Format matters: apply parses checkboxes.** A box holding only `x` counts
+      as done, any case and any spacing (`- [ x]` is done). Every other marker,
+      including `- [~]`, `- [-]` and `- []`, reads as unfinished. A line with no
+      checkbox is not tracked at all. Use `- [ ] N.M [RED] ...` and
+      `- [ ] N.M [GREEN] ...`.
+
+      Rules:
+      - Every slice is a PAIR: one RED task, then its GREEN task. Never plan
+        several tests before an implementation - that is horizontal slicing and
+        it tests imagined behavior.
+      - RED states: the seam id from seams.md, the test name, the input, the
+        expected value, and that the seam's command must fail.
+      - GREEN states: the minimal implementation that makes that one test pass,
+        and that the seam's command must re-run green.
+      - The test command lives once, in that seam's row in seams.md. Do not
+        repeat it in every task.
+      - Expected values are independent literals or worked examples. Never
+        recompute them the way the implementation computes them.
+      - Order pairs by dependency. Each pair fits in one session.
+      - Do not plan refactoring here. Refactoring belongs to review.
+      - Documentation and integration checks may be plain tasks, but they never
+        replace a slice's own tests.
+
+      Example:
+      ```
+      # Tasks
+
+      ## 1. 时长解析
+
+      - [ ] 1.1 [RED] seam S1: 测试 "纯分钟输入"，`parseDuration("90m")` → `5400`；运行 S1 的命令，必须失败
+      - [ ] 1.2 [GREEN] 实现分钟解析，使 1.1 通过；重跑 S1 的命令，必须全绿
+      - [ ] 1.3 [RED] seam S1: 测试 "小时分钟组合"，`parseDuration("1h30m")` → `5400`；运行 S1 的命令，必须失败
+      - [ ] 1.4 [GREEN] 实现组合解析，使 1.3 通过；重跑 S1 的命令，必须全绿
+      ```
+
+      Reference specs for behavior, seams.md for where to test, design for how.
+    requires:
+      - specs
+      - design
+      - seams
+
+apply:
+  requires: [ tasks ]
+  tracks: tasks.md
+  instruction: |
+    严格按 TDD 循环执行 tasks.md，一个切片对应一对 RED/GREEN 任务：
+
+    1. RED：只写测试，不改实现。运行任务里写明的命令，必须看到这条测试失败。
+       红可以来自"断言不成立"或"被测符号还不存在"；语法错误、测试自己写错、
+       环境或路径错误都不算红，必须先修测试本身再谈实现。
+    2. 红灯异常：若测试直接通过，立刻停止并报告——要么功能已经存在，要么断言
+       什么也没有验证。不要为了让流程继续而删掉或弱化断言。
+    3. GREEN：只写让这一条测试通过的最小实现，不预写后续切片的逻辑。
+    4. 勾选：RED 与 GREEN 两个复选框都勾上，这个切片才算完成。
+    5. 一次一个切片：本切片 GREEN 之前，绝不写下一个切片的测试。
+    6. 测试只写在 seams.md 里确认过的接缝上。发现需要新接缝，先停下问用户，
+       确认后补进 seams.md 再继续。
+    7. 重构不在循环内，留到 review 阶段。
+    8. 判定标准：好测试、三个反模式、mock 边界，见
+       openspec/schemas/tdd-flow/tdd-guide.md。
+    9. 收口：所有切片勾完后（切片 = RED/GREEN 对，**不含** tasks 末尾的 review 收口任务；
+       那条在 review 完成、结论写进 review.md 之后才勾），必须跑
+       openspec-custom-code-review skill，把结论写进
+       openspec/changes/<change>/review.md。仍有 open 的 high/medium 时，
+       这个 change 不算实现完成，不要 archive。

@@ -1,0 +1,18 @@
+schema: tdd-flow
+
+context: |
+  所有产物用简体中文撰写。
+  本项目遵循 TDD：任何实现任务开始前，必须先有对应的失败测试。
+  测试用 Node 内置 runner 跑：`node --test`。
+
+rules:
+  seams:
+    - 每个接缝必须写明跑测试的命令，以及它测不到什么
+  tasks:
+    - 每个实现切片必须拆成 RED 与 GREEN 两个复选框
+    - 测试命令只写在 seams.md，任务里引用 seam 编号，不重复命令
+
+operations:
+  apply:
+    guidance:
+      - 所有切片勾完后跑 openspec-custom-code-review，结论写进 review.md；还有 open 的 high/medium 时不要 archive
