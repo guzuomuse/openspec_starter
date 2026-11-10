@@ -67,6 +67,20 @@ function Get-SchemaVersion([string]$path) {
     return [int]$hit.Matches[0].Groups[1].Value
 }
 
+function Get-ContentHash([string]$path) {
+    # 文本文件先规范化行尾，避免 CRLF/LF 差异导致永远判定"内容不同"
+    $ext = [System.IO.Path]::GetExtension($path).ToLowerInvariant()
+    $textExts = @('.md', '.yaml', '.yml', '.json', '.txt', '.ps1', '.sh', '.mjs', '.js', '.ts')
+    if ($textExts -contains $ext) {
+        $text = [System.IO.File]::ReadAllText($path) -replace "`r`n", "`n"
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try { return [System.BitConverter]::ToString($sha.ComputeHash($bytes)) }
+        finally { $sha.Dispose() }
+    }
+    return (Get-FileHash $path -Algorithm SHA256).Hash
+}
+
 function Test-DirSame([string]$left, [string]$right) {
     if (-not (Test-Path $left)) { return $false }
     $a = @(Get-ChildItem -Recurse -File $left | ForEach-Object { $_.FullName.Substring($left.Length).TrimStart('\', '/') })
@@ -74,9 +88,7 @@ function Test-DirSame([string]$left, [string]$right) {
     if ($a.Count -ne $b.Count) { return $false }
     if (Compare-Object -ReferenceObject $a -DifferenceObject $b) { return $false }
     foreach ($rel in $a) {
-        $ha = (Get-FileHash (Join-Path $left $rel) -Algorithm SHA256).Hash
-        $hb = (Get-FileHash (Join-Path $right $rel) -Algorithm SHA256).Hash
-        if ($ha -ne $hb) { return $false }
+        if ((Get-ContentHash (Join-Path $left $rel)) -ne (Get-ContentHash (Join-Path $right $rel))) { return $false }
     }
     return $true
 }
