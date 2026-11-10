@@ -174,13 +174,24 @@ apply  (requires: [tasks], tracks: tasks.md)
 Triage 到 Route 的关键分界：`patch`（无歧义）／`decision_needed`（要用户意图）／`defer`（非本次引入）。
 只有 `patch` 才自动修，且**修复本身必须先补一条失败测试**。
 
+**能不能自动拍板，判据不是严重度，是两件事**（`patch` 只说明修法清楚，不说明可以自己决定）：
+
+| | 修复会让 design 已写下的选择失效？否 | 是 |
+|---|---|---|
+| 回滚成本低 | 直接修，记一笔 | 自动修 + 必须同步改 design |
+| 回滚成本高 | 问 | 问 |
+
+三条边界：`specs/`、`proposal.md`、`seams.md` 的契约段落永远不许自动改（要改就是 `decision_needed`）；
+**低优先级 + 有歧义时默认"记录限制"而不是"改行为"**（写进 design 的 Non-Goals 或扩写 seams 盲区，
+零行为漂移、可逆）；每条自动决策必须有证据，每轮最多 3 条，单独记进 `## Auto-decided` 区。
+
 取/弃：
 
 - **取**：两轴分离（code-review）、三态判定真伪 + 路由三分（bmad）、
   "回归能否让某条断言变红"（verification-gap）、smell 基线
 - **弃**：uv 模板渲染、repo 外临时 triage 文件、issue tracker 依赖、
   model capability 要求、仪式化的 step-01/05
-- **新增**：修复走红绿；复跑最多两轮，仍不通过就停下交人
+- **新增**：修复走红绿；复跑最多两轮，仍不通过就停下交人；自动决策走两问矩阵 + 三条护栏
 
 **修复分两类，不能一套规则套到底**（实测得出）：
 
