@@ -2,6 +2,10 @@
 
 > 每个切片是一对 RED/GREEN 复选框，按编号顺序执行。GREEN 之前不写下一对。
 > 测试命令不写在这里，写在 seams.md 里该接缝的那一行。
+> RED 行默认写"运行命令必须失败"；若 design.md 已判定某条断言在现有实现下**天然成立**，
+> 就把那一行写成"预期首跑即绿，走红灯异常 (b)"并给出原因——别让任务行跟 design 打架。
+> 每对 GREEN 之后当场自证：先提交本次 GREEN（或另存副本），再删掉被钉的实现 → 本条测试必须变红 →
+> 恢复并复跑全绿；不红不勾框，也不要用 `git checkout` 恢复未提交的实现。
 
 ## 1. <!-- 行为组名 -->
 
@@ -15,4 +19,6 @@
 
 ## 3. Review 收口
 
-- [ ] 3.1 运行 openspec-custom-code-review skill，findings 写入 review.md；high/medium 逐条修复（每条先补失败的回归测试）并复跑至通过
+- [ ] 3.1 运行 openspec-custom-code-review skill，findings 写入 review.md；high/medium 逐条修复
+  （**行为改动**先补一条失败的回归测试；**非行为改动**——注释、提取常量、测试内部重构——以
+  "复跑全绿 + 无行为漂移"为证据，并在 review.md 写明为什么不需要新测试），复跑至通过
