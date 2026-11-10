@@ -1,5 +1,5 @@
 name: tdd-flow
-version: 1
+version: 2
 description: TDD workflow - proposal → specs → design → seams → tasks, 红绿成对切片
 artifacts:
   - id: proposal
@@ -173,13 +173,19 @@ artifacts:
     instruction: |
       Create the design document that explains HOW to implement the change.
 
-      When to include design.md (create only if any apply):
-      - Cross-cutting change (multiple services/modules) or new architectural pattern
-      - New external dependency or significant data model changes
-      - Security, performance, or migration complexity
-      - Ambiguity that benefits from technical decisions before coding
+      Every change produces a design.md - it sits on the dependency graph, so
+      the workflow cannot skip the file - but its depth follows the change:
+      - Simple change (one module, no new external dependency, no data model
+        change, approach already obvious from proposal + specs): keep it to
+        Context and Decisions, a few lines on what you chose and why. Leave the
+        other sections out.
+      - Write the full set below when any apply:
+        - Cross-cutting change (multiple services/modules) or new architectural pattern
+        - New external dependency or significant data model changes
+        - Security, performance, or migration complexity
+        - Ambiguity that benefits from technical decisions before coding
 
-      Sections:
+      Sections (include only the ones the change earns):
       - **Context**: Only the current state and constraints needed to explain the approach. Reference the proposal for motivation instead of restating it (e.g., "See proposal.md - Why").
       - **Goals / Non-Goals**: What this design achieves and explicitly excludes. Don't restate the proposal's scope - add only design-level boundaries.
       - **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.
@@ -245,6 +251,11 @@ artifacts:
         expected value, and that the seam's command must fail.
       - GREEN states: the minimal implementation that makes that one test pass,
         and that the seam's command must re-run green.
+      - Slice count follows behavior complexity, not behavior count: a typical
+        change needs 1-3 pairs, not one pair per requirement. Open a new pair
+        only for a new seam, a new branch family, or a state machine. A guard
+        on a branch an earlier slice already covers is one more assertion in
+        that slice's test, not a pair.
       - The test command lives once, in that seam's row in seams.md. Do not
         repeat it in every task.
       - Expected values are independent literals or worked examples. Never

@@ -136,9 +136,9 @@ apply  (requires: [tasks], tracks: tasks.md)
 |---|---|---|
 | `proposal.md` | Why（≥50 字符）/ What / Capabilities / Impact | 最短，别写成设计文档 |
 | `specs/` | 可观察行为、输入输出、错误条件 | 中文 `## Purpose` 需约 50 字才能过 `--strict`；MODIFIED 必须整块替换 |
-| `design.md` | 决策与理由、备选方案、风险 | 可短；没有取舍就不要写 |
+| `design.md` | 决策与理由、备选方案、风险 | 始终产出（在依赖图上）；深度分档——简单变更几行即可 |
 | `seams.md` | 接缝（公共边界）、覆盖行为、**测试命令**、盲区 | 测试只写在接缝上；新接缝先问再补 |
-| `tasks.md` | 成对的 `[RED]` / `[GREEN]` 切片 + 末尾 review 收口组 | 不重复写命令，只引用 seam 编号 |
+| `tasks.md` | 成对的 `[RED]` / `[GREEN]` 切片 + 末尾 review 收口组 | 不重复写命令，只引用 seam 编号；切片数按行为复杂度（通常 1-3 对） |
 | `apply.instruction` | 9 条循环硬规则（8 条红绿 + 第 9 条收口） | 替换内置指令 |
 | `tdd-guide.md` | 好测试 / 三反模式 / mock 边界 / 红的两步 | 外置，不进 prompt，不被 update 覆盖 |
 
@@ -147,6 +147,11 @@ apply  (requires: [tasks], tracks: tasks.md)
 - **接缝文件化**：参考 skill 说"先与用户确认接缝"，落成 `seams.md` 才可审、可 commit。
 - **反模式结构化成模板**："禁止横向切片"变成"任务必须成对编号"，从建议升级为形状。
 - **长文档外置**：`tdd-guide.md` 放在 schema 目录，instruction 只写一行路径，省每次的 prompt。
+- **design 深度分档，而不是"可选/必需"打架**：`design.md` 在依赖图上，CLI 只认文件是否存在，所以
+  原句"create only if any apply"与 `tasks.requires: design` 互相矛盾，agent 只能自行解释（实测中这种
+  结构别扭消耗的注意力比 11 条 findings 还多）。v2 改成"始终产出，深度按变更复杂度分档"。
+- **切片数跟复杂度走，不跟行为条数走**：实测用 6 对切片写 10 行代码，后半段全是"已知会红"，信息量接近零。
+  v2 规则：通常 1-3 对，只有新接缝 / 新分支族 / 状态机才加对。
 
 ### review 接线（四重，强度递减）
 
