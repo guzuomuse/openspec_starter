@@ -20,9 +20,20 @@
 //        fixed/rejected/closed 开头即算 open）；
 //     3. 两边对不上（Verdict 报的比反推的少）= 不可信，直接阻塞。
 //   想蒙过去得同时改两处结构化字段，而不是换一种说法。
+//
+// v5（与 schema v5 同步）再加两条结构检查，专治"写了承诺但没兑现"：
+//     4. `## 验证记录` 只允许一节（重复 = 两份互相矛盾的记录）；
+//     5. tasks.md 里每处 `[RED→绿]` 必须在验证记录里对应一行红证。
+//        review 里写一句"按约定应补红证"不算做了——欠条必须真还。
+//
+// 副本会落后：每个消费者仓库自带一份，老副本少了新检查，跑出来的 0 是旧判据的 0。
+// 所以成功行打印判据版本（gate v5）——版本对不上就是跑错了脚本（多半是跑错了目录）。
 
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import process from 'node:process';
+
+const GATE_VERSION = 'v5';
 
 const file = process.argv[2];
 
@@ -113,5 +124,39 @@ for (const level of ['high', 'medium']) {
   }
 }
 
-console.log(`✓ review 可收口：${verdictLine}`);
+// ---- 4. 结构检查：验证记录唯一 + [RED→绿] 欠条还清 --------------------------
+const verificationSections = [
+  ...text.matchAll(/^##[ \t]*验证记录[ \t]*$([\s\S]*?)(?=^##[ \t]|(?![\s\S]))/gm),
+];
+
+if (verificationSections.length > 1) {
+  broken(
+    `「## 验证记录」写了 ${verificationSections.length} 节，只允许一节` +
+      `（重复通常是两份互相矛盾的记录：一份说固定点是基线，一份说工作区）`,
+  );
+}
+
+const verificationText = verificationSections.map((m) => m[1]).join('\n');
+const redProofLines = verificationText
+  .split(/\r?\n/)
+  .filter((line) => line.includes('红证')).length;
+
+const tasksPath = join(dirname(file), 'tasks.md');
+let annotations = 0;
+try {
+  annotations = (readFileSync(tasksPath, 'utf8').match(/\[RED→绿/g) ?? []).length;
+} catch {
+  annotations = 0; // 没有 tasks.md 就不查这条
+}
+
+if (annotations > redProofLines) {
+  fail(
+    `tasks.md 有 ${annotations} 处 [RED→绿] 标注，验证记录里只有 ${redProofLines} 行红证。\n` +
+      `  每处标注都是一张欠条：删掉被钉的实现 → 对应断言必须变红 → 恢复，\n` +
+      `  并在验证记录写一行「- 红证 [<任务号>]：删了什么 → 哪条断言变红」。\n` +
+      `  删了也不红 = 断言没有区分力，记一条 medium / verification finding。`,
+  );
+}
+
+console.log(`✓ review 可收口（gate ${GATE_VERSION}）：${verdictLine}`);
 process.exit(0);

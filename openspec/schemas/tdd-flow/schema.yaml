@@ -1,5 +1,5 @@
 name: tdd-flow
-version: 4
+version: 5
 description: TDD workflow - proposal → specs → design → seams → tasks, 红绿成对切片
 artifacts:
   - id: proposal
@@ -320,6 +320,11 @@ apply:
        `node scripts/check-review.mjs openspec/changes/<change>/review.md`，退出码必须为 0
        ——CLI 只数复选框、不读 verdict，这个脚本是把结论变成可执行判据的唯一环节
        （脚本不在的仓库，就先补 scripts/check-review.mjs）。
+       收口时在对话里**单独起一节 `## Review`**，至少三行：verdict 行、门禁退出码、
+       findings 计数（high/medium/low）。别把 review 埋进任务流水账——它发生过但看不见，
+       等于没发生，用户会以为这轮没 review。
+       你在 RED 阶段标过的每个 `[RED→绿]` 都是欠条，由 review 阶段用红证还；review 里
+       只写一句"按约定应补红证"不算还，门禁会数条数。
        仍有 open 的 high/medium 时，这个 change 不算实现完成，不要 archive。
     10. 逐切片提交会留下"当时还不符 spec"的中间态提交，这是 TDD 的正常产物：
        不要 checkout 中间版本当可用版本，也不要为了历史好看去改已完成切片。

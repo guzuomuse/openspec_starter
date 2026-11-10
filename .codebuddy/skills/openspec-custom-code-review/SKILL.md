@@ -39,9 +39,18 @@ description: Review a finished OpenSpec change along three independent lenses (s
    4. 四种都空，才报"没有可审的改动"并停。
    用户给了 commit/branch 时优先用他给的。**把最终采用的固定点写进 `review.md` 的「验证记录」**，
    复跑时沿用同一个，别每轮漂。
-3. 确认固定点能解析（`git rev-parse <point>`）、diff 非空。ref 错要在这里就失败，
+3. **接手 apply 留下的 `[RED→绿]` 标注**。`tasks.md` 里每一条 `[RED→绿: …]` 都是一张欠条：
+   当初那条测试第一次跑就绿了，红证没做。本次 review 必须逐条补：
+
+   - 删掉被钉住的那段实现 → 对应断言**必须变红** → 恢复并确认全绿；
+   - 删了也不红 = 断言没有区分力 → 记一条 `medium` / `verification` finding，别放过；
+   - 结果写进 review.md 的「验证记录」，一行一次：`- 红证 [3.1]：删 <什么> → <哪条断言> 变红`。
+
+   门禁脚本会数：`tasks.md` 的 `[RED→绿]` 条数 **大于** 验证记录里的红证行数时直接阻塞。
+   所以"写一句按约定应补红证"不算，必须真的做。
+4. 确认固定点能解析（`git rev-parse <point>`）、diff 非空。ref 错要在这里就失败，
    不要留到子代理里才发现。
-4. 记下 diff 命令和提交列表，后面每个透镜都要用。
+5. 记下 diff 命令和提交列表，后面每个透镜都要用。
 
 ## 1. 三透镜：先探能力，再决定并行还是串行
 
@@ -213,9 +222,17 @@ node scripts/check-review.mjs openspec/changes/<change>/review.md
   `fixed` / `rejected` / `closed` 开头才算关闭；**缺 `- 状态：` 一律算 open**）；
 - 两边对不上就阻塞。想蒙过去得同时改两处结构化字段，而不是换一种说法。
 
-退出码：`0` 可收口；`1` 阻塞（⛔ / 有 open 的 high/medium / Verdict 与 Findings 不一致）；
-`2` 结构或文件问题（同样不放行：缺 Verdict、缺 `high N` 计数、文件读不到）。
+退出码：`0` 可收口；`1` 阻塞（⛔ / 有 open 的 high/medium / Verdict 与 Findings 不一致 /
+`[RED→绿]` 欠条没还）；`2` 结构或文件问题（缺 Verdict、缺 `high N` 计数、`## 验证记录` 写了不止一节、文件读不到）。
 脚本不在仓库里时先补 `scripts/check-review.mjs`（模板里有这份）。
+
+**跑对副本、跑对目录。** 每个仓库自带一份 `scripts/check-review.mjs`，副本会落后于模板；
+在别的目录下执行会拿到那份旧脚本，它的 `0` 是**旧判据的 0**。所以：在**被审查仓库的根目录**跑它自己的副本，
+并看成功行末尾的判据版本（`✓ review 可收口（gate v5）`）——版本比仓库 schema 落后，就先把脚本同步过来再判。
+
+**写"无发现"要付举证。** Verdict 是 ✅ 且 Findings 为空时，验证记录里必须逐透镜写出**实际做过的动作**：
+跑了哪条命令、读了哪个文件的哪一节、做了几次红证或变异。写不出可复述的动作，就不许写"无发现"——
+那说明这次只是通读，不是审查。`无发现` + 空验证记录 = 最容易被当成"干净"的假绿。
 
 ## 6. 写 `review.md`
 
@@ -255,6 +272,7 @@ node scripts/check-review.mjs openspec/changes/<change>/review.md
 - 固定点：`<BASE 或 分支>`，`git diff <BASE>` 覆盖 N 个提交（为什么选它：工作区干净 → 取规划提交）
 - 测试：`<seams.md 里的命令>` → x pass / y fail
 - 取证：三透镜均可执行命令 / `取证降级：静态推演`（主代理补跑了：…）
+- 红证 [3.1]：删 `<哪段实现>` → `<哪条断言>` 变红，已恢复（`[RED→绿]` 几条就写几行，门禁会数）
 ```
 
 ## 什么不算缺陷
