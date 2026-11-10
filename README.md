@@ -45,21 +45,40 @@ pwsh C:\my_projects\openspec-starter\install.ps1 -Target .
 |---|---|---|
 | `-Target` | 必填 | 目标项目根目录 |
 | `-Agents` | `opencode,codebuddy` | 把 skill 分发到哪些工具目录 |
-| `-Force` | 关 | 覆盖已存在的 schema / skill |
+| `-DryRun` | 关 | 只打印计划，不写任何文件 |
+| `-Force` | 关 | 强制重写，无视版本与内容比对 |
 
-### 关于 `config.yaml`
+## 更新策略
 
-- 目标是 `init` 刚生成的默认配置（只有 `schema: spec-driven`）→ 直接覆盖
-- 目标已有自定义的 `context` / `rules` → **不覆盖**，备份成 `config.yaml.bak`，并打印需要手工合并的字段
+脚本**不判断"文件归谁"**，只看能不能安全决定：
+
+| 对象 | 判据 | 结果 |
+|---|---|---|
+| `openspec/schemas/tdd-flow/` | 读 `schema.yaml` 的 `version` | 目标版本 < 源版本 → 备份后覆盖；相同 → 静默跳过 |
+| `openspec/config.yaml` | 有无 `context:` / `rules:` / `operations:` | 无（init 默认）→ 整份写入；有 → **只改 `schema:` 这一行** |
+| `.opencode/skills/…`、`.codebuddy/skills/…` | 目录内容逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖 |
+
+所以重复安装是幂等的（第二次全 `skip`），用户自己写的 `context` / `rules` 不会被冲掉——脚本最多动 `schema:` 那一行。
+
+备份一律写到 `%TEMP%\openspec-starter-backup\<时间戳>\`，不往项目里塞 `.bak`。
+
+### 维护约定：改 schema 必须升 `version`
+
+`version` 是唯一的升级信号。改了 `payload/openspec/schemas/tdd-flow/` 里的任何内容，
+就把 `schema.yaml` 的 `version` 加 1，否则已装过的项目会判定"已是最新"而跳过。
 
 ## 升级
 
 ```bash
 cd C:\my_projects\openspec-starter
 git pull
+
 cd C:\proj\my-new-project
-pwsh C:\my_projects\openspec-starter\install.ps1 -Target . -Force
+pwsh C:\my_projects\openspec-starter\install.ps1 -Target . -DryRun   # 先看会改什么
+pwsh C:\my_projects\openspec-starter\install.ps1 -Target .
 ```
+
+不加 `-Force` 也能升级：脚本按 `version` 与内容比对决定覆盖，只动该动的部分。
 
 ## 目录结构
 

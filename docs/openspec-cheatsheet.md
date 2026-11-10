@@ -215,27 +215,20 @@ Triage 到 Route 的关键分界：`patch`（无歧义）／`decision_needed`（
 | `.codebuddy/skills/openspec-*/` + `.codebuddy/commands/opsx/*.md` | openspec init | 受管，`update` 重写 |
 | `AGENTS.md` | ours | 项目约定（提交、测试、工作流） |
 
-### 8.2 从零复现（新项目）
+### 8.2 复现（新项目）
 
 ```bash
-openspec init                              # 选工具：opencode / codebuddy（可多选）
-cd openspec/schemas && openspec schema fork spec-driven tdd-flow
+# 一次性：把 starter 克隆到项目外面，不要放进每个项目
+git clone https://github.com/guzuomuse/openspec_starter C:\my_projects\openspec-starter
+
+# 每个新项目
+openspec init --tools opencode,codebuddy
+pwsh C:\my_projects\openspec-starter\install.ps1 -Target . -DryRun   # 先看计划
+pwsh C:\my_projects\openspec-starter\install.ps1 -Target .
 ```
 
-然后 5 步手工：
-
-1. 用本仓库的 `schema.yaml` 覆盖 fork 产物（改了 artifacts 顺序、新增 seams、重写 apply 指令）
-2. 覆盖 `templates/tasks.md`，新增 `templates/seams.md`
-3. 新增 `tdd-guide.md`
-4. 覆写 `openspec/config.yaml`（`schema: tdd-flow` + context + rules + operations）
-5. 把 `openspec-custom-code-review/` 复制到每个工具的 skills 目录
-
-最后两项验证：
-
-```bash
-openspec schema validate tdd-flow     # 必须 ✓
-openspec schemas                      # 应看到 tdd-flow (project)
-```
+没有 starter 时的手工复现是 5 步：`schema fork` → 覆盖 `schema.yaml` → 覆盖 `tasks` 模板并新增
+`seams` 模板 → 新增 `tdd-guide.md` → 覆写 `config.yaml` 并分发 skill。
 
 ### 8.3 与官方能力的边界
 
@@ -247,7 +240,28 @@ openspec schemas                      # 应看到 tdd-flow (project)
 | 三透镜 review | 我们 | 自有 skill，不依赖 CLI 任何能力 |
 | 真·强制（顺序、红绿、review 质量） | **谁都没有** | 只能靠 prompt 自觉 + 人 + 外部 CI |
 
-### 8.4 实测覆盖
+### 8.4 更新策略（为什么不做"所有权判断"）
+
+官方**没有任何 ownership 机制**。`openspec update` 的做法是"重新生成 → 逐字节比对 → 不同就写"，
+从不判断文件是否被用户改过；`schema.yaml` 的 `version` 文档明确"不影响行为"；
+官方 schema 文档也确认不存在 owner / generatedBy / 校验和 / 锁文件。
+
+所以 starter 不引入清单文件，也不加 `# managed-by` 注释，改用三条各自成立的判据：
+
+| 对象 | 判据 | 结果 |
+|---|---|---|
+| schema 目录 | `schema.yaml` 的 `version` | 目标 < 源 → 备份后覆盖；相同 → 跳过（**用户改动因此被保护**） |
+| `config.yaml` | 有无 `context:` / `rules:` / `operations:` | 无（init 默认）→ 整份写入；有 → **只改 `schema:` 一行** |
+| skill 目录 | 逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖 |
+
+**关键认识**：`config.yaml` 里真正必须落到目标项目的只有 `schema:` 一行，其余（context / rules /
+operations）是用户资产。把"整文件覆盖"降级成"改一行"，"这文件归谁"的问题就消失了——
+不需要猜，也不需要额外状态。
+
+另抄了官方两条做法：`-DryRun` 与真跑**共用同一条代码路径**（预览不会说谎）；
+重复安装幂等（第二次全 skip）。
+
+### 8.5 实测覆盖
 
 | change | 跑了什么 | 结果 |
 |---|---|---|
