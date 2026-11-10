@@ -37,7 +37,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-const GATE_VERSION = 'v6';
+const GATE_VERSION = 'v7';
 
 const file = process.argv[2];
 

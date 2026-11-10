@@ -231,7 +231,7 @@ node scripts/check-review.mjs openspec/changes/<change>/review.md
 `[RED→绿]` 欠条没还）；`2` 结构或文件问题（缺 Verdict、缺 `high N` 计数、`## 验证记录` 写了不止一节、文件读不到）。
 脚本不在仓库里时先补 `scripts/check-review.mjs`（模板里有这份）。
 
-**跑对副本、跑对目录。**（当前判据版本 `gate v6`） 每个仓库自带一份 `scripts/check-review.mjs`，副本会落后于模板；
+**跑对副本、跑对目录。**（当前判据版本 `gate v7`） 每个仓库自带一份 `scripts/check-review.mjs`，副本会落后于模板；
 在别的目录下执行会拿到那份旧脚本，它的 `0` 是**旧判据的 0**。所以：在**被审查仓库的根目录**跑它自己的副本，
 并看成功行末尾的判据版本（`✓ review 可收口（gate v5）`）——版本比仓库 schema 落后，就先把脚本同步过来再判。
 
