@@ -28,12 +28,16 @@
 //
 // 副本会落后：每个消费者仓库自带一份，老副本少了新检查，跑出来的 0 是旧判据的 0。
 // 所以成功行打印判据版本（gate v5）——版本对不上就是跑错了脚本（多半是跑错了目录）。
+//
+// v5.1 修一处误判：欠条原先按整文件子串 `[RED→绿` 计数，散文里提到这套机制（例如
+// 「本切片是真红，红灯异常处理不适用」）也会被算成一笔债，于是唯一的通关办法是改措辞——
+// 门禁逼人撒谎。现在只数**任务行**（复选框行）上的标注，并在阻塞时把被判为欠条的行原样列出来。
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-const GATE_VERSION = 'v5';
+const GATE_VERSION = 'v5.1';
 
 const file = process.argv[2];
 
@@ -142,16 +146,24 @@ const redProofLines = verificationText
   .filter((line) => line.includes('红证')).length;
 
 const tasksPath = join(dirname(file), 'tasks.md');
-let annotations = 0;
+let debtLines = [];
 try {
-  annotations = (readFileSync(tasksPath, 'utf8').match(/\[RED→绿/g) ?? []).length;
+  debtLines = readFileSync(tasksPath, 'utf8')
+    .split(/\r?\n/)
+    .map((line, index) => ({ line, no: index + 1 }))
+    // 只数「任务行上的标注」：必须是一个复选框任务，且带 [RED→绿。
+    // 散文里提到这套机制（例如解释「本切片是真红，红灯异常处理不适用」）不算欠条——
+    // 按整文件子串计数会把解释性文字也算成债，逼着人改措辞来绕门禁，那才是真的漏洞。
+    .filter(({ line }) => /^\s*[-*]\s*\[[^\]]{0,4}\]/.test(line) && line.includes('[RED→绿'));
 } catch {
-  annotations = 0; // 没有 tasks.md 就不查这条
+  debtLines = []; // 没有 tasks.md 就不查这条
 }
 
-if (annotations > redProofLines) {
+if (debtLines.length > redProofLines) {
+  const listed = debtLines.map(({ line, no }) => `    tasks.md:${no}  ${line.trim()}`).join('\n');
   fail(
-    `tasks.md 有 ${annotations} 处 [RED→绿] 标注，验证记录里只有 ${redProofLines} 行红证。\n` +
+    `tasks.md 有 ${debtLines.length} 处任务行上的 [RED→绿] 标注，验证记录里只有 ${redProofLines} 行红证。\n` +
+      `  被判为欠条的行（散文提及不计）：\n${listed}\n` +
       `  每处标注都是一张欠条：删掉被钉的实现 → 对应断言必须变红 → 恢复，\n` +
       `  并在验证记录写一行「- 红证 [<任务号>]：删了什么 → 哪条断言变红」。\n` +
       `  删了也不红 = 断言没有区分力，记一条 medium / verification finding。`,
