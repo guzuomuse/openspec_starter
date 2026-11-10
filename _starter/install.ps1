@@ -35,7 +35,9 @@ param(
 
     [switch]$Force,
 
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    [switch]$SkipSelfCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -285,6 +287,82 @@ try {
 }
 finally {
     Pop-Location
+}
+
+# ---- 6. 升级后自检：项目还能不能跑 ------------------------------------------
+# 升级会覆盖 schema / scripts / skill，也可能顺手把项目弄坏（新判据让门禁变红、
+# 新脚本用不上旧 API 等）。这里跑一次"还能跑起来吗"。
+# 失败不一定是升级造成的，所以用独立退出码 3 + 提示先看 git diff，
+# 而不是让人以为升级改了业务代码。
+if ($SkipSelfCheck) {
+    Write-Warn "已跳过升级后自检（-SkipSelfCheck）"
+}
+else {
+    Write-Step "自检：测试与 review 门禁"
+    $selfCheckFailed = $false
+
+    Push-Location $Target
+    try {
+        $testCmd = $null
+        if (Test-Path (Join-Path $Target "test")) {
+            $testCmd = "node --test"
+        }
+        elseif (Test-Path (Join-Path $Target "package.json")) {
+            if (Select-String -Path (Join-Path $Target "package.json") -Pattern '"test"\s*:' -Quiet) {
+                $testCmd = "npm test --silent"
+            }
+        }
+
+        if ($testCmd) {
+            $null = cmd /c "$testCmd 2>&1"
+            if ($LASTEXITCODE -eq 0) {
+                Write-Info "ok" $testCmd "exit 0"
+            }
+            else {
+                Write-Warn "测试失败：$testCmd → exit $LASTEXITCODE（先 git diff：也可能是升级前就红的）"
+                $selfCheckFailed = $true
+            }
+        }
+        else {
+            Write-Info "skip" "测试" "既没有 test/ 也没有 npm test"
+        }
+
+        $changesDir = Join-Path $Target "openspec/changes"
+        $reviews = @()
+        if (Test-Path $changesDir) {
+            $reviews = @(Get-ChildItem -Path $changesDir -Directory | ForEach-Object {
+                    $candidate = Join-Path $_.FullName "review.md"
+                    if (Test-Path $candidate) { $candidate }
+                })
+        }
+
+        if ($reviews.Count -eq 0) {
+            Write-Info "skip" "review 门禁" "没有 review.md"
+        }
+        else {
+            foreach ($review in $reviews) {
+                $rel = $review.Substring($Target.Length).TrimStart('\', '/')
+                $null = cmd /c "node scripts/check-review.mjs `"$rel`" 2>&1"
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Info "ok" $rel "门禁通过"
+                }
+                else {
+                    # 门禁阻塞是项目的合法状态（比如 review 还有 open 的 medium），不算升级失败
+                    Write-Warn "$rel 门禁 exit $LASTEXITCODE —— 可能是升级前就阻塞，也可能新判据抓到了旧问题"
+                }
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    if ($selfCheckFailed) {
+        Write-Host ""
+        Write-Host "升级完成，但自检失败（退出码 3）。先 git diff 确认是不是这次升级引起的；" -ForegroundColor Red
+        Write-Host "确认无关后可以用 -SkipSelfCheck 重跑。" -ForegroundColor Red
+        exit 3
+    }
 }
 
 Write-Host ""

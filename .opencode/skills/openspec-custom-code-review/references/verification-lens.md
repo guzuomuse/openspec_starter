@@ -76,6 +76,36 @@ schema 或事件形状、默认值、校验规则、对外契约。一个行为�
 写 finding 之前，把依赖的测试和搜索结果重新打开一遍。确认：
 回归真实存在，且你读过的测试确实接不住它。
 
+## 变异测试：钉住"是哪一行让它变绿"
+
+`tasks.md` 里的自证证明的是"**整段**实现是载荷"，不证明"每一行是载荷"。要找"删掉它也没有断言会红"的行，
+用仓库自带的 `scripts/mutate-check.mjs`（模板的 `scripts/` 随 `install.ps1` 分发）：
+
+```bash
+node scripts/mutate-check.mjs path/to/mutations.mjs
+node scripts/mutate-check.mjs path/to/mutations.mjs --cmd "node --test test/x.test.mjs"
+```
+
+清单是一个 ESM 文件，导出数组；`apply` 返回改坏后的源码：
+
+```js
+export default [
+  { id: "M1", file: "src/roman.mjs", note: "表改成升序", apply: (s) => s.replace(/…/, "…") },
+];
+```
+
+判读：
+
+- `KILLED` = 有断言杀掉它，好；
+- `SURVIVED` = 改坏了却全绿 → 那行/那个分支没有区分力，记一条 `low`/`verification`；
+  若能证明它完全冗余（删了行为不变），直接删；
+- `NOOP` = 变异没改到字符（正则没匹配），是用法错误，不能算 KILLED；
+- **等价变异**（改写法不改行为，如 `out += x` → `out = out + x`）存活是正常的，从清单里删掉，
+  别为它补断言——那样只会写成同义反复。
+
+脚本在临时副本里跑，不动工作区；任何 `SURVIVED`/`NOOP` 都让退出码非 0。
+`tasks.md` 里的自证不能替代这一步：自证看"整段"，变异看"逐行"。
+
 ## 不要报
 
 - 编译器或类型检查器保证的

@@ -357,6 +357,23 @@ lesson3 第四轮（`add-roman-numeral`，模板 v6）实测：三对切片各�
 同一轮踩到的坑即上表第 8 条：自证时 `git checkout -- src/roman.mjs` 把未提交的 GREEN 冲回空壳，靠"0 pass / 1 fail"才发现。
 教训写成一句话：**恢复靠提交，不靠 checkout**。
 
+### 8.9 工具：变异测试台与升级自检
+
+review 的"行级归属"不再靠临场发挥，模板带两个脚本：
+
+- `scripts/mutate-check.mjs <mutations.mjs> [--cmd "<测试命令>"] [--root <项目根>] [--keep]`：
+  整棵项目复制到临时目录（跳过 `.git`/`node_modules`/构建产物）→ 基线跑绿 → 逐条改坏源码 →
+  跑测试 → 归类 `KILLED` / `SURVIVED` / `NOOP`。任何存活或 NOOP 都让退出码为 1，可以当门禁用。
+  等价变异（改写法不改行为，如 `out += x` → `out = out + x`）存活属正常，从清单里删掉。
+  实测（lesson3 `add-roman-numeral`）：9 组变异修复前 8 KILLED / 1 SURVIVED，修复后 9/9 KILLED。
+- `install.ps1` 装完自检：有 `test/` 跑 `node --test`，有 `package.json` 的 `test` 脚本跑 `npm test`，
+  有 `openspec/changes/*/review.md` 就逐个跑门禁。测试失败 → **退出码 3**（提示先 `git diff`：
+  也可能是升级前就红的）；门禁非 0 只警告（review 阻塞是合法状态）。`-SkipSelfCheck` 跳过。
+
+分工别搞混：`tasks.md` 的自证管"**整段**实现是不是载荷"，变异测试管"**每一行**是不是载荷"。
+少了后者，死代码（删掉也没有断言变红）永远查不出来——lesson3 的 `typeof n !== "number"` 子句
+就是这么被抓到的（只删那一个子句，19 条断言全绿）。
+
 ---
 
 ## 9. 踩坑记录

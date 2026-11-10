@@ -35,11 +35,38 @@ pwsh ./_starter/install.ps1 -Target C:\proj\some-existing-project
 | `openspec/schemas/tdd-flow/` | 读 `schema.yaml` 的 `version` | 目标版本 < 源版本 → 备份后覆盖；相同 → 跳过 |
 | `openspec/config.yaml` | 有无 `context:` / `rules:` / `operations:` | 无 → 整份写入；有 → **只改 `schema:` 这一行** |
 | `.opencode/skills/openspec-custom-*`、`.codebuddy/skills/openspec-custom-*` | 目录内容逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖 |
-| `scripts/` | 逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖（`check-review.mjs` 走这条） |
+| `scripts/` | 逐文件 SHA256 | 一致 → 跳过；不同 → 备份后覆盖（`check-review.mjs`、`mutate-check.mjs` 走这条） |
 | `.codebuddy/skills/openspec-*/`、`.opencode/skills/openspec-*/`、`commands/opsx*` | — | **不分发**（CLI 受管，靠 `openspec update`） |
 
-参数：`-Target`（必填）、`-Agents`（默认 `opencode,codebuddy`）、`-DryRun`、`-Force`。
+参数：`-Target`（必填）、`-Agents`（默认 `opencode,codebuddy`）、`-DryRun`、`-Force`、`-SkipSelfCheck`。
 备份写到 `%TEMP%\openspec-starter-backup\<时间戳>\`，不往项目里塞 `.bak`。
+
+**升级后自检**：装完在目标项目里跑一次"还能跑起来吗"——有 `test/` 就跑 `node --test`，
+有 `package.json` 且含 `test` 脚本就跑 `npm test`，有 `openspec/changes/*/review.md` 就逐个跑门禁。
+测试失败 → **退出码 3**，并提示先 `git diff`（也可能是升级前就红的）；门禁非 0 只警告，
+因为"review 还阻塞着"是项目的合法状态。`-SkipSelfCheck` 可跳过。
+
+## `scripts/mutate-check.mjs`：变异测试台
+
+verification 透镜要回答的是"**哪一行**让它变绿"。`tasks.md` 的自证只能证明"整段实现是载荷"，
+逐行的归属要靠变异：把源码改坏，看有没有断言变红。
+
+```bash
+node scripts/mutate-check.mjs mutations.mjs                                   # 默认 node --test
+node scripts/mutate-check.mjs mutations.mjs --cmd "node --test test/x.test.mjs"
+```
+
+清单是 ESM 文件，导出一个 `{ id, file, note?, apply(source) }` 数组。脚本把整棵树复制到临时目录
+（跳过 `.git`/`node_modules`/构建产物），基线先跑绿，然后逐条改坏 → 跑测试 → 归类：
+
+| 判定 | 含义 | 怎么办 |
+|---|---|---|
+| `KILLED` | 有断言杀掉它 | 好 |
+| `SURVIVED` | 改坏了仍全绿 | 那处没有区分力 → 删冗余，或补一条只有它能过的断言，记 `low`/`verification` |
+| `NOOP` | `apply` 没改动任何字符 | 用法错误，重写变异，不能算 KILLED |
+
+**等价变异**（改写法、不改行为，如 `out += x` → `out = out + x`）存活是正常的，从清单里删掉即可。
+任何 `SURVIVED` 或 `NOOP` 都让退出码非 0，所以它可以当门禁用。工作区一个字节都不动。
 
 ## `scripts/check-review.mjs` 的约定
 
